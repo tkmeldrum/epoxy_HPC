@@ -75,10 +75,10 @@ def log_likelihood(params, t_data, a_data, r):
     return -0.5 * np.sum(residual**2 + np.log(2 * np.pi * sigma**2))
 
 def log_posterior(params, t_data, a_data, r):
-    lp = log_prior(params, t_data, a_data)
+    lp = log_prior(params, t_data, a_data, r)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + log_likelihood(params, t_data, a_data)
+    return lp + log_likelihood(params, t_data, a_data, r)
 
 def run_mcmc(start_params, t_data, a_data, r, scale_params=None):
     ndim = len(start_params)
@@ -105,7 +105,8 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
     label = f"{method}_{sample}_{temp}C"
 
     # Corner plot
-    fig = corner.corner(samples, labels=["log_k1", "log_k2", "m", "n", "r", "log_sigma"])
+    # fig = corner.corner(samples, labels=["log_k1", "log_k2", "m", "n", "r", "log_sigma"])
+    fig = corner.corner(samples, labels=["log_k1", "log_k2", "m", "n", "log_sigma"])
     fig.savefig(f"fit_plots/{label}_corner.png")
     plt.close(fig)
 
