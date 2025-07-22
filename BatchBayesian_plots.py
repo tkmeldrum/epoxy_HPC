@@ -13,19 +13,24 @@ from datetime import datetime
 import time
 import traceback
 
-from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
+from mcmc_config import overlay_n, nwalkers, nsteps
 
-def solve_model(log_k1, log_k2, m, n, r, t_data, eps=1e-10):
+def solve_model(log_k1, log_k2, m, n, r, t_data, a_data, eps=1e-10):
     """
     Plotting-specific model solver. Uses a fixed small a0 and does not depend on a_data.
     """
     k1 = 10 ** log_k1
     k2 = 10 ** log_k2
-    a0 = [eps]
+    assert r > 0, f"Invalid r: {r}"
+    a0 = [np.clip(a_data[0], eps, r - eps)]  # ✅ start from observed α(0)
 
     def ode_rhs(t, a):
         a = np.clip(a, eps, r - eps)
-        return (k1 + k2 * a**m) * (1 - a)**(n/2) * (r - a)**(n/2)
+        rate = (k1 + k2 * a**m) * (1 - a)**(n/2) * (r - a)**(n/2)
+        if not np.isfinite(rate):
+            print(f"💥 NaN in rate: a={a}, params=({log_k1}, {log_k2}, {m}, {n}, {r})")
+            return 0.0  # or np.nan if you want it to break
+        return rate
 
     try:
         sol = solve_ivp(ode_rhs, [t_data[0], t_data[-1]], a0, t_eval=t_data,
@@ -125,24 +130,40 @@ def plot_dadt_vs_alpha(alpha_preds, t_data, a_data, label, outdir):
     plt.close()
 
 def plot_corner(samples, label, outdir):
-    fig = corner.corner(samples, labels=["log_k1", "log_k2", "m", "n", "r", "log_sigma"])
+    # Clip out extreme outliers
+    lower_bounds = np.quantile(samples, 0.01, axis=0)
+    upper_bounds = np.quantile(samples, 0.99, axis=0)
+    mask = np.all((samples >= lower_bounds) & (samples <= upper_bounds), axis=1)
+    filtered = samples[mask]
+
+    # Plot with nice range control
+    ranges = [
+        (np.percentile(filtered[:, i], 0.5), np.percentile(filtered[:, i], 99.5))
+        for i in range(filtered.shape[1])
+    ]
+
+    fig = corner.corner(filtered, labels=["log_k1", "log_k2", "m", "n", "log_sigma"], range=ranges)
     fig.savefig(f"{outdir}/{label}_corner.png", dpi=300)
     plt.close(fig)
 
+
 def plot_chains(chain, label, outdir):
-    nsteps, nwalkers, ndim = chain.shape
+    nwalkers, nsteps, ndim = chain.shape
     fig, axes = plt.subplots(ndim, 1, figsize=(10, 2 * ndim), sharex=True)
-    param_names = ["log_k1", "log_k2", "m", "n", "r", "log_sigma"]
+    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
+
     for i in range(ndim):
         ax = axes[i]
-        for walker in range(nwalkers):
-            ax.plot(chain[:, walker, i], alpha=0.3)
+        for w in range(nwalkers):
+            ax.plot(chain[w, :, i], alpha=0.3)
         ax.set_ylabel(param_names[i])
+
     axes[-1].set_xlabel("Step")
     fig.suptitle(f"{label} MCMC Chains")
     fig.tight_layout()
     fig.savefig(f"{outdir}/{label}_chains.png", dpi=300)
     plt.close(fig)
+
 
 def make_summary_grid(label, outdir="fit_plots"):
     fig, axes = plt.subplots(3, 2, figsize=(12, 14))
@@ -175,42 +196,146 @@ def make_summary_grid(label, outdir="fit_plots"):
     fig.savefig(f"{prefix}_summary.png", dpi=300)
     plt.close(fig)
 
-def make_plots(samples, chain, t_data, a_data, label, outdir="fit_plots", overlay_n=overlay_n, burnin=burnin, stride=stride):
-    import time  # in case it's not already imported
+def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", overlay_n=None, burnin=None, stride=None):
+    from scipy.spatial.distance import mahalanobis
+    from mcmc_config import overlay_n as default_overlay_n, burnin as default_burnin, stride as default_stride
+    if burnin is None:
+        burnin = default_burnin
+    if stride is None:
+        stride = default_stride
+    if overlay_n is None:
+        overlay_n = default_overlay_n
     os.makedirs(outdir, exist_ok=True)
     start_time = time.time()
     print(f"📊 Starting plots for {label}", flush=True)
 
     # Apply burn-in and thinning
+    print(f"📦 samples shape before: {samples.shape}")
     samples = samples[burnin::stride]
+    print(f"📦 samples shape after burnin/stride: {samples.shape}")
     chain = chain[burnin::stride]  # (steps, walkers, ndim)
     chain = np.transpose(chain, (1, 0, 2))  # → (walkers, steps, ndim) for plotting
+
+    walker_means = np.mean(chain, axis=1)  # shape: (nwalkers, ndim)
+
+    # Compute ensemble mean and cov
+    ensemble_mean = np.mean(walker_means, axis=0)
+    ensemble_cov = np.cov(walker_means.T)
+    inv_cov = np.linalg.pinv(ensemble_cov)  # robust inverse
+
+    # Compute Mahalanobis distance per walker
+    dists = np.array([
+        mahalanobis(walker_means[i], ensemble_mean, inv_cov)
+        for i in range(len(walker_means))
+    ])
+
+    # Filter walkers: keep those within N std of the center
+    cutoff = 3.0
+    walker_ok = dists < cutoff
+    n_total = len(walker_ok)
+    n_kept = np.sum(walker_ok)
+
+    for i, ok in enumerate(walker_ok):
+        if not ok:
+            print(f"🚫 Walker {i} removed: Mahalanobis dist = {dists[i]:.2f} > {cutoff}")
+
+    print(f"📊 Kept {n_kept} / {n_total} walkers")
+
+    # Filter chain and rebuild samples
+    chain = chain[walker_ok]  # (n_kept, nsteps, ndim)
+    samples = chain.transpose(1, 0, 2).reshape(-1, chain.shape[-1])
+    
+    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
+    print(f"\n📊 Per-walker parameter stats (after burnin/stride/removing stuck walkers):")
+    for w in range(chain.shape[0]):
+        print(f"\n🧍 Walker {w}:")
+        for i, name in enumerate(param_names):
+            mean = np.mean(chain[w, :, i])
+            std = np.std(chain[w, :, i])
+            print(f"   {name:10s} → mean = {mean:+.5f}, std = {std:.2e}")
+
+
 
     # Randomly sample posterior draws
     idx = np.random.choice(len(samples), size=min(overlay_n, len(samples)), replace=False)
     subset = samples[idx]
+
+    print(f"🧪 overlay_n = {overlay_n}, subset.shape = {subset.shape}")
+
 
     # Solve and filter
     alpha_preds = []
     filtered_subset = []
 
     for p in subset:
-        a_fit = solve_model(*p[:5], t_data)
+        log_k1, log_k2, m, n, log_sigma = p
+        a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
+        # print(f"▶ solve_model returned: {a_fit}")
+        # print(f"▶ isfinite: {np.all(np.isfinite(a_fit))}, any nans? {np.any(np.isnan(a_fit))}")
+
+
+        if not np.all(np.isfinite(a_fit)):
+            print(f"💩 NaNs in a_fit | params: {p}")
+            continue
+
+        # print(f"✅ a_fit: min={np.min(a_fit):.4f}, max={np.max(a_fit):.4f}, final={a_fit[-1]:.4f}")
+        # print(f"✅ a_data: final={a_data[-1]:.4f}, max={np.max(a_data):.4f}")
 
         max_ok = np.max(a_fit) < 1.05 * np.max(a_data)
-        min_ok = np.min(a_fit) > 0
+        min_ok = np.min(a_fit) > 1e-8
         final_close = np.abs(a_fit[-1] - a_data[-1]) < 0.05 * np.max(a_data)
         monotonic = np.all(np.diff(a_fit) >= -0.01)
 
-        if (
-            np.all(np.isfinite(a_fit)) and
-            max_ok and
-            min_ok and
-            final_close and
-            monotonic
-        ):
+        if not max_ok:
+            print("❌ Failed max_ok")
+        if not min_ok:
+            print("❌ Failed min_ok")
+        if not final_close:
+            print("❌ Failed final_close")
+        if not monotonic:
+            print("❌ Failed monotonic")
+
+        if max_ok and min_ok and final_close and monotonic:
             alpha_preds.append(a_fit)
             filtered_subset.append(p)
+
+
+        # === stricter filtering ===
+        # if (
+        #     np.all(np.isfinite(a_fit)) and
+        #     max_ok and
+        #     min_ok and
+        #     final_close and
+        #     monotonic
+        # ):
+        #     alpha_preds.append(a_fit)
+        #     filtered_subset.append(p)
+
+        # === looser filtering ===
+        # if np.all(np.isfinite(a_fit)):
+        #     alpha_preds.append(a_fit)
+        #     filtered_subset.append(p)
+
+    print(f"✅ Kept {len(alpha_preds)} / {len(subset)} curves")
+
+    if len(alpha_preds) == 0:
+        print(f"[{label}] ❌ No valid posterior curves for {label}. Plotting raw α(t) only.")
+        plt.figure()
+        plt.plot(t_data, a_data, 'ko', label='Observed α(t)')
+        plt.title(f"{label} — Raw Data Only")
+        plt.xlabel("Time")
+        plt.ylabel("α(t)")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{outdir}/{label}_raw_data_only.png", dpi=300)
+        return
+        # ---------------------------------------
+        # 🔥 DEAR FUTURE ME:
+        # This return used to be outside the `if`
+        # And it ABSOLUTELY FUCKING RUINED EVERYTHING
+        # Don't trust your goddamn indentation.
+        # ---------------------------------------
+
 
     alpha_preds = np.array(alpha_preds)
     filtered_subset = np.array(filtered_subset)
@@ -228,6 +353,17 @@ def make_plots(samples, chain, t_data, a_data, label, outdir="fit_plots", overla
 
     print(f"✅ Finished all plots for {label} in {time.time() - start_time:.2f}s", flush=True)
 
+    # === CI width diagnostic ===
+    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
+    samples = np.array(filtered_subset)
+
+    print(f"\n📊 95% CI widths for {label}:")
+    for i, name in enumerate(param_names):
+        vals = 10**samples[:, i] if "log" in name else samples[:, i]
+        lo, hi = np.percentile(vals, [2.5, 97.5])
+        print(f"  {name:10}: {hi - lo:.3e}  (95% CI)")
+
+
 def load_npz_files(directory):
     for file in os.listdir(directory):
         if file.endswith("_fitdata.npz"):
@@ -242,35 +378,35 @@ if __name__ == "__main__":
         parser.add_argument("--stride", type=int, default=None, help="Thinning stride")
         args = parser.parse_args()
 
+        from mcmc_config import burnin as config_burnin, stride as config_stride
+        burnin = args.burnin if args.burnin is not None else config_burnin
+        stride = args.stride if args.stride is not None else config_stride
+
         input_dir = "mcmc_samples"
 
+        def process_file(file_path):
+            label = os.path.basename(file_path).replace("_fitdata.npz", "")
+            data = np.load(file_path)
+            samples = data["samples"]
+            chain = data["chain"]
+            t_data = data["t_data"]
+            a_data = data["a_data"]
+            r = np.max(a_data)
+            print(f"📦 Plotting {label} with burnin={burnin}, stride={stride}, r={r:.4f}")
+            make_plots(samples, chain, t_data, a_data, r, label,
+                       burnin=burnin, stride=stride)
+
         if args.file:
-            # Just one file
-            file_path = args.file
-            if not os.path.exists(file_path):
-                print(f"❌ File not found: {file_path}", flush=True)
+            if not os.path.exists(args.file):
+                print(f"❌ File not found: {args.file}", flush=True)
             else:
-                label = os.path.basename(file_path).replace("_fitdata.npz", "")
-                data = np.load(file_path)
-                samples = data["samples"]
-                chain = data["chain"]
-                t_data = data["t_data"]
-                a_data = data["a_data"]
-                make_plots(samples, chain, t_data, a_data, label,
-                           burnin=args.burnin, stride=args.stride)
+                process_file(args.file)
         else:
-            # Run on all files in mcmc_samples/
             for file_path in load_npz_files(input_dir):
-                label = os.path.basename(file_path).replace("_fitdata.npz", "")
-                data = np.load(file_path)
-                samples = data["samples"]
-                chain = data["chain"]
-                t_data = data["t_data"]
-                a_data = data["a_data"]
-                make_plots(samples, chain, t_data, a_data, label,
-                           burnin=args.burnin, stride=args.stride)
+                process_file(file_path)
 
     except Exception as e:
         print("💥 An error occurred during plotting:", flush=True)
         traceback.print_exc()
+
 

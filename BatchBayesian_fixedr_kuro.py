@@ -65,18 +65,37 @@ def log_prior(params, t_data, a_data, r):
 
 def log_likelihood(params, t_data, a_data, r):
     log_k1, log_k2, m, n, log_sigma = params
-    a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
-    if np.any(np.isnan(a_fit)) or np.any(a_fit <= 0) or np.any(a_fit >= r):
-        return -1e6  # large penalty for optimizer compatibility
+    # print(f"Inside log_likelihood: {log_k1=}, {log_k2=}, {m=}, {n=}, {log_sigma=}, {r=}")
+    if r <= 0 or not np.isfinite(r):
+        return -np.inf  # 🚫 invalid r
+
+    try:
+        a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
+    except Exception:
+        return -np.inf  # catch rare integration failures
+
+    if (
+        not np.all(np.isfinite(a_fit)) or
+        np.any(a_fit <= 0) or
+        np.any(a_fit >= r)
+    ):
+        return -np.inf  # strict penalty: don't reward broken curves
+
     sigma = 10 ** log_sigma
     residual = (a_data - a_fit) / sigma
     return -0.5 * np.sum(residual**2 + np.log(2 * np.pi * sigma**2))
+
 
 def log_posterior(params, t_data, a_data, r):
     lp = log_prior(params, t_data, a_data, r)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + log_likelihood(params, t_data, a_data, r)
+    ll = log_likelihood(params, t_data, a_data, r)
+    if not np.isfinite(ll):
+        print(f"[Reject] {params=}")
+        return -np.inf
+    return lp + ll
+
 
 def run_mcmc(start_params, t_data, a_data, r, scale_params=None):
     ndim = len(start_params)
@@ -93,6 +112,8 @@ def run_mcmc(start_params, t_data, a_data, r, scale_params=None):
             nwalkers, ndim, log_posterior, args=(t_data, a_data, r), pool=pool
         )
         sampler.run_mcmc(p0, nsteps, progress=True, store=True)
+
+    print("✅ Mean acceptance fraction:", np.mean(sampler.acceptance_fraction))
 
     chain = sampler.get_chain()
     samples = sampler.get_chain(discard=burnin, flat=True)
@@ -175,7 +196,6 @@ def process_single(task):
         print(f"Dataset {method}_{sample}_{temp}C not found.")
         return None
 
-    # Initialize from CSV if available
     if fit_csv is not None:
         row = fit_csv[
             (fit_csv["Method"] == method) &
@@ -189,10 +209,9 @@ def process_single(task):
             m = row["Fit_m"]
             n = row["Fit_n"]
             # r = row["Fit_r"]
-            r = np.max(a_data)  # NEW: fix r based on data
+            r = np.max(a_data)  # fix r based on data
             sigma_guess = np.std(a_data - np.clip(a_data, 1e-6, 1 - 1e-6))
             log_sigma = np.log10(sigma_guess) if sigma_guess > 0 else -4
-            # start = [log_k1, log_k2, m, n, r, log_sigma]
             start = [log_k1, log_k2, m, n, log_sigma]
 
             try:
@@ -207,15 +226,21 @@ def process_single(task):
             except Exception as e:
                 print(f"[Warning] Missing uncertainty values for {method}_{sample}_{temp}C: {e}")
                 scale_params = np.array([0.2] * 5)
+
+            # 🛡 Apply minimum spread floor to prevent stuck walkers
+            scale_params = np.maximum(scale_params, 0.05)
+
         else:
             print(f"[Fallback] No CSV match for {method}_{sample}_{temp}C. Using default start.")
-            # start = [-5, -2, 0.5, 1.4, np.max(a_data), -4]
             start = [-5, -2, 0.5, 1.4, -4]
-            # scale_params = np.array([0.2] * 6)
             scale_params = np.array([0.2] * 5)
     else:
-        start = [-5, -2, 0.5, 1.4,  -4]
+        start = [-5, -2, 0.5, 1.4, -4]
         scale_params = np.array([0.2] * 5)
+
+    print(f"🔧 MCMC init: start = {start}")
+    print(f"🔧 MCMC init: scale_params = {scale_params}")
+
 
     # Attempt optimization
     opt = minimize(lambda p: -log_posterior(p, t_data, a_data, r), start,
@@ -226,6 +251,11 @@ def process_single(task):
         init_params = start
     else:
         init_params = opt.x
+
+
+    print("Start params:", start)
+    print("r (fixed):", r)
+
 
     # Run MCMC with either optimized or fallback
     samples, chain, sampler = run_mcmc(init_params, t_data, a_data, r, scale_params)
