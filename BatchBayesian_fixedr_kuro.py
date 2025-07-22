@@ -13,11 +13,9 @@ import pickle
 from numpy import gradient
 import multiprocessing
 from multiprocessing import freeze_support
+from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
 
-# Parameters
-nsteps = 100000
-burnin = int(0.2*nsteps)
-nwalkers = 48
+
 # param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
 param_names = ['log_k1', 'log_k2', 'm', 'n', 'log_sigma']
 samples_list = ['EDA', 'DAP', 'DAB']

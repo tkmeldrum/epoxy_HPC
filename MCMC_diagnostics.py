@@ -1,5 +1,8 @@
 import os
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # Non-GUI backend for saving plots to files
+
 import matplotlib.pyplot as plt
 import argparse
 import emcee
@@ -10,7 +13,9 @@ import arviz as az
 from model_module import log_posterior
 from emcee.autocorr import AutocorrError
 
-param_names = ["log_k1", "log_k2", "m", "n", "r", "log_sigma"]
+from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
+
+param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
 
 csv_path = "diagnostic_plots/diagnostics_summary.csv"
 if not os.path.exists(csv_path):
@@ -45,7 +50,7 @@ def compute_autocorr_stats(sampler):
 
 
 
-def plot_diagnostics(chain, label, param_names=None, outdir="diagnostic_plots", burnin=4000):
+def plot_diagnostics(chain, label, param_names=None, outdir="diagnostic_plots", burnin=burnin):
     os.makedirs(outdir, exist_ok=True)
 
     # Handle correct shape: (nsteps, nwalkers, ndim)
@@ -92,7 +97,7 @@ def plot_diagnostics(chain, label, param_names=None, outdir="diagnostic_plots", 
     fig.savefig(f"{outdir}/{label}_running_means.png")
     plt.close(fig)
 
-def summarize_diagnostics(samples, chain, label, sampler, burnin=4000, csv_path=None):
+def summarize_diagnostics(samples, chain, label, sampler, burnin, csv_path=None):
     print(f"\n📊 Diagnostics for {label}")
     print(f"Shape of chain: {chain.shape} (steps, walkers, params)")
     print(f"🧹 Using burn-in of {burnin} steps")
@@ -114,9 +119,7 @@ def summarize_diagnostics(samples, chain, label, sampler, burnin=4000, csv_path=
     try:
         nsteps, nwalkers, ndim = chain.shape
         print(f"🔍 Interpreting as {nwalkers} walkers over {nsteps} steps, {ndim} parameters")
-
-        arviz_stride = 10
-        thin_chain = chain[burnin::arviz_stride, :, :]  # (steps, walkers, params)
+        thin_chain = chain[burnin::stride, :, :]  # (steps, walkers, params)
         print(f"📏 Thin chain shape: {thin_chain.shape} (steps, walkers, params)")
 
         posterior = {}
@@ -182,18 +185,15 @@ if __name__ == "__main__":
 
         # === Diagnostics on full chain ===
         t1 = time.time()
-        summarize_diagnostics(samples=None, chain=chain, label=label, sampler=sampler, burnin=40000, csv_path=csv_path)
+        summarize_diagnostics(samples=None, chain=chain, label=label, sampler=sampler, burnin=burnin, csv_path=csv_path)
         print(f"✅ Summarized diagnostics in {time.time() - t1:.2f}s")
 
         # === Thinning for ArviZ and plotting ===
-        burnin = 40000
-        thin_by = 10
-        thinned = chain[burnin::thin_by, :, :]  # (thinned_steps, walkers, params)
+        thinned = chain[burnin::stride, :, :]  # (thinned_steps, walkers, params)
         n_steps, n_walkers, n_params = thinned.shape
         print(f"📏 Thinned chain shape: {thinned.shape} (steps, walkers, params)")
 
         # === Reshape for ArviZ ===
-        param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
         posterior_dict = {
             name: thinned[:, :, i].T  # (chains, draws)
             for i, name in enumerate(param_names)

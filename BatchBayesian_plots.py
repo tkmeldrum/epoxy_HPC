@@ -13,6 +13,8 @@ from datetime import datetime
 import time
 import traceback
 
+from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
+
 def solve_model(log_k1, log_k2, m, n, r, t_data, eps=1e-10):
     """
     Plotting-specific model solver. Uses a fixed small a0 and does not depend on a_data.
@@ -173,7 +175,7 @@ def make_summary_grid(label, outdir="fit_plots"):
     fig.savefig(f"{prefix}_summary.png", dpi=300)
     plt.close(fig)
 
-def make_plots(samples, chain, t_data, a_data, label, outdir="fit_plots", overlay_n=200, burnin=40000, stride=10):
+def make_plots(samples, chain, t_data, a_data, label, outdir="fit_plots", overlay_n=overlay_n, burnin=burnin, stride=stride):
     import time  # in case it's not already imported
     os.makedirs(outdir, exist_ok=True)
     start_time = time.time()
@@ -236,8 +238,8 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="Plot MCMC results from saved .npz files.")
         parser.add_argument("file", nargs="?", default=None,
                             help="Optional path to a single .npz file. If omitted, all *_fitdata.npz files in mcmc_samples/ will be processed.")
-        parser.add_argument("--burnin", type=int, default=40000, help="Burn-in steps to discard")
-        parser.add_argument("--stride", type=int, default=10, help="Thinning stride")
+        parser.add_argument("--burnin", type=int, default=None, help="Burn-in steps to discard")
+        parser.add_argument("--stride", type=int, default=None, help="Thinning stride")
         args = parser.parse_args()
 
         input_dir = "mcmc_samples"
