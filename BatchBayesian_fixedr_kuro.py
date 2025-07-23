@@ -375,7 +375,17 @@ def process_single(task):
         row = fit_csv[(fit_csv["Method"] == method) & (fit_csv["Sample"] == sample) & (fit_csv["Temperature"] == temp)]
         if not row.empty:
             row = row.iloc[0]
-            start = [np.log10(row["Fit_k1"]), np.log10(row["Fit_k2"]), row["Fit_m"], row["Fit_n"], np.log10(np.std(a_data - np.clip(a_data, 1e-6, 1 - 1e-6))) if np.std(a_data) > 0 else -4]
+            # Estimate safe log_sigma from clipped std
+            std_clip = np.std(a_data - np.clip(a_data, 1e-6, 1 - 1e-6))
+            log_sigma_init = np.log10(std_clip) if std_clip > 1e-12 else -4
+
+            start = [
+                np.log10(row["Fit_k1"]),
+                np.log10(row["Fit_k2"]),
+                row["Fit_m"],
+                row["Fit_n"],
+                log_sigma_init
+            ]
             try:
                 scale_params = np.array([
                     row["Unc_k1"] / row["Fit_k1"] / np.log(10) if row["Fit_k1"] > 0 else 0.2,
