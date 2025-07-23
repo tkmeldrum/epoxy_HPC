@@ -155,7 +155,7 @@ def plot_log_posterior_slices(best_params, t_data, a_data, r, param_names):
             lp = log_posterior(trial, t_data, a_data, r)
 
             # 🔍 Diagnostic print before appending
-            print(f"  {label} = {val:.4f}, log_posterior = {lp:.3f}" if np.isfinite(lp) else f"  {label} = {val:.4f}, log_posterior = -inf")
+            # print(f"  {label} = {val:.4f}, log_posterior = {lp:.3f}" if np.isfinite(lp) else f"  {label} = {val:.4f}, log_posterior = -inf")
 
             log_post_vals.append(lp if np.isfinite(lp) else np.nan)
 
@@ -178,11 +178,12 @@ def plot_log_posterior_slices(best_params, t_data, a_data, r, param_names):
         else:
             print("  ⚠️ All log_posterior values are -inf or NaN.")
 
-def scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r):
+def scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r, method, sample, temp):
     m, n, log_sigma = fixed_params
     Z = np.full((len(log_k1_vals), len(log_k2_vals)), np.nan)
 
-    print("🧭 Running posterior grid scan...")
+    print(f"🧭 Running posterior grid scan for {method}_{sample}_{temp}C...")
+
     for i, log_k1 in enumerate(tqdm(log_k1_vals, desc="Scanning log_k1")):
         if i % 10 == 0:
             print(f"🔍 Row {i}/{len(log_k1_vals)}: log_k1 = {log_k1:.3f}")
@@ -194,10 +195,11 @@ def scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_da
             except Exception as e:
                 Z[i, j] = np.nan
 
-    os.makedirs("diagnostic_plots", exist_ok=True)
+    outdir = "diagnostic_plots"
+    os.makedirs(outdir, exist_ok=True)
 
-    # Save .npz
-    np.savez("diagnostic_plots/log_posterior_grid.npz", log_k1=log_k1_vals, log_k2=log_k2_vals, log_post=Z)
+    base = f"{outdir}/grid_{method}_{sample}_{temp}"
+    np.savez(f"{base}_log_posterior_grid.npz", log_k1=log_k1_vals, log_k2=log_k2_vals, log_post=Z)
 
     # Find max
     max_idx = np.unravel_index(np.nanargmax(Z), Z.shape)
@@ -213,10 +215,10 @@ def scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_da
     plt.scatter([max_log_k1], [max_log_k2], color='red', label='Max log posterior')
     plt.xlabel("log_k1")
     plt.ylabel("log_k2")
-    plt.title("Posterior Heatmap with Max Overlay")
+    plt.title(f"Posterior Heatmap: {method}_{sample}_{temp}C")
     plt.legend()
     plt.tight_layout()
-    plt.savefig("diagnostic_plots/posterior_heatmap_with_max.png")
+    plt.savefig(f"{base}_heatmap_with_max.png")
     plt.close()
 
     # 3D Surface Plot with slices
@@ -249,14 +251,16 @@ def scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_da
     ax3.set_ylabel("log posterior")
 
     plt.tight_layout()
-    plt.savefig("diagnostic_plots/zoomed_surface_with_slices.png")
+    plt.savefig(f"{base}_surface_with_slices.png")
     plt.close()
 
     # Export best start params for walker init (optional helper file)
     best_params = np.array([max_log_k1, max_log_k2, m, n, log_sigma])
-    np.save("diagnostic_plots/grid_start_params.npy", best_params)
+    np.save(f"{base}_start_params.npy", best_params)
 
-    print("✅ Posterior grid scan complete. Results and best guess saved to 'diagnostic_plots/'")
+    print(f"✅ Posterior grid scan complete for {method}_{sample}_{temp}C.")
+    print(f"🧭 Best grid start = {best_params}, log_posterior = {max_val:.2f}")
+    return best_params
 
 
 def run_mcmc(start_params, t_data, a_data, r, scale_params=None):
@@ -363,29 +367,42 @@ def process_single(task):
         print(f"Dataset {method}_{sample}_{temp}C not found.")
         return None
 
-    r = np.max(a_data)  # always fix r from data
-    grid_param_file = "diagnostic_plots/grid_start_params.npy"
+    r = np.max(a_data)
+    start = None
+    scale_params = None
 
-    # Get initial params
-    if os.path.exists(grid_param_file):
-        print("📦 Using grid scan start params")
-        start = np.load(grid_param_file)
-        scale_params = np.array([0.1, 0.1, 0.02, 0.02, 0.05])
-    elif fit_csv is not None:
+    grid_param_file = f"diagnostic_plots/grid_start_{method}_{sample}_{temp}.npy"
+
+    # Priority 1: run scan if flagged or file missing
+    if args.grid_scan or not os.path.exists(grid_param_file):
+        print("🚀 Running grid scan to find best starting point...")
+        try:
+            log_k1_vals = np.linspace(-10, 0, 100)
+            log_k2_vals = np.linspace(-10, 0, 100)
+            fixed_params = [0.4, 1.6, -3.0]  # m, n, log_sigma guess — replace if needed
+            start = scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r, method, sample, temp)
+            np.save(grid_param_file, start)
+            scale_params = np.array([0.1, 0.1, 0.02, 0.02, 0.05])
+        except Exception as e:
+            print(f"[Grid Scan Failed] Falling back: {e}")
+
+    # Priority 2: load existing grid result
+    if start is None and os.path.exists(grid_param_file):
+        try:
+            print("📦 Using cached grid scan start params")
+            start = np.load(grid_param_file)
+            scale_params = np.array([0.1, 0.1, 0.02, 0.02, 0.05])
+        except Exception as e:
+            print(f"[Load Failed] Could not load grid start file: {e}")
+
+    # Priority 3: CSV fallback
+    if start is None and fit_csv is not None:
         row = fit_csv[(fit_csv["Method"] == method) & (fit_csv["Sample"] == sample) & (fit_csv["Temperature"] == temp)]
         if not row.empty:
             row = row.iloc[0]
-            # Estimate safe log_sigma from clipped std
             std_clip = np.std(a_data - np.clip(a_data, 1e-6, 1 - 1e-6))
             log_sigma_init = np.log10(std_clip) if std_clip > 1e-12 else -4
-
-            start = [
-                np.log10(row["Fit_k1"]),
-                np.log10(row["Fit_k2"]),
-                row["Fit_m"],
-                row["Fit_n"],
-                log_sigma_init
-            ]
+            start = [np.log10(row["Fit_k1"]), np.log10(row["Fit_k2"]), row["Fit_m"], row["Fit_n"], log_sigma_init]
             try:
                 scale_params = np.array([
                     row["Unc_k1"] / row["Fit_k1"] / np.log(10) if row["Fit_k1"] > 0 else 0.2,
@@ -398,14 +415,25 @@ def process_single(task):
             scale_params = np.maximum(scale_params, 0.05)
         else:
             print(f"[Fallback] No CSV match for {method}_{sample}_{temp}C.")
-            start = [-5, -2, 0.5, 1.4, -4]
-            scale_params = np.array([0.2] * 5)
-    else:
+
+    # Priority 4: final fallback
+    if start is None:
+        print("[Fallback] Using hardcoded default start params.")
         start = [-5, -2, 0.5, 1.4, -4]
         scale_params = np.array([0.2] * 5)
 
     print(f"🔧 MCMC init: start = {start}")
     print(f"🔧 MCMC init: scale_params = {scale_params}")
+
+    # Log to CSV summary if grid scan produced a result
+    if os.path.exists(grid_param_file):
+        try:
+            grid_data = np.load(f"diagnostic_plots/grid_{method}_{sample}_{temp}_log_posterior_grid.npz")
+            Z = grid_data["log_post"]
+            max_val = np.nanmax(Z)
+            # save_grid_scan_summary(method, sample, temp, start, max_val)
+        except Exception as e:
+            print(f"[Warning] Could not save grid scan summary CSV: {e}")
 
     opt = minimize(lambda p: -log_posterior(p, t_data, a_data, r), start, method='Nelder-Mead', options={'maxiter': 1000})
     init_params = opt.x if opt.success and not np.any(np.isnan(opt.x)) else start
@@ -417,7 +445,7 @@ def process_single(task):
         print(f"🚫 Skipping {method}_{sample}_{temp}C due to failed MCMC init.")
         return None
     samples, chain, sampler = result
-    
+
     label = f"{method}_{sample}_{temp}C"
     os.makedirs("mcmc_samples", exist_ok=True)
 
@@ -474,7 +502,7 @@ if __name__ == "__main__":
         log_k2_vals = np.linspace(-4, -2, 100)
         fixed_params = (0.5, 1.4, -4.0)  # Replace with your default m, n, log_sigma
 
-        scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r)
+        scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r, method, sample, temp)
         sys.exit(0)  # Exit after grid scan
 
     if args.method and args.sample and args.temp:

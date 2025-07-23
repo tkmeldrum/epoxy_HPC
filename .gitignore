@@ -2,3 +2,5 @@
 *.code-workspace
 /logs
 /__pycache__
+/diagnostic_plots
+/fit_plots
