@@ -35,7 +35,7 @@ LOG_FILE = None  # placeholder
 def log_debug(msg):
     if LOG_FILE:
         with open(LOG_FILE, "a") as f:
-            f.write(f"[{datetime.now().isoformat()}] {msg}\r\n")
+            f.write(f"[{datetime.now().isoformat()}] {msg}\n")
 
 # param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
 param_names = ['log_k1', 'log_k2', 'm', 'n', 'log_sigma']
@@ -64,25 +64,25 @@ def solve_model(log_k1, log_k2, m, n, r, t_data, a_data, eps=1e-10):
         a0 = np.clip(a_data[0], eps, r - eps)
         sol = solve_ivp(ode_rhs, [t_data[0], t_data[-1]], [a0], t_eval=t_data,
                         args=(log_k1, log_k2, m, n, r), method='LSODA',
-                        rtol=1e-6, atol=1e-8)
+                        rtol=1e-8, atol=1e-10)
         if not sol.success or not np.all(np.isfinite(sol.y)):
-            log_debug(f"[ODE FAIL] success={sol.success}, finite={np.all(np.isfinite(sol.y))}, log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r}, a0={a0}, t_span=({t_data[0]}, {t_data[-1]})\r\n")
+            log_debug(f"[ODE FAIL] success={sol.success}, finite={np.all(np.isfinite(sol.y))}, log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r}, a0={a0}, t_span=({t_data[0]}, {t_data[-1]})\n")
             return np.full_like(t_data, np.nan)
-        return np.clip(sol.y[0], 1e-6, r - 1e-6)
+        return np.clip(sol.y[0], 1e-8, r - 1e-8)
     except Exception as e:
-        log_debug(f"[SOLVE EXCEPTION] log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r} => {e}\r\n")
+        log_debug(f"[SOLVE EXCEPTION] log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r} => {e}\n")
         return np.full_like(t_data, np.nan)
     
 
 def log_prior(params, t_data, a_data, r):
     log_k1, log_k2, m, n, log_sigma = params
     # Loosened prior bounds to allow exploration
-    if not (-10 < log_k1 < -0.5 and
-            -10 < log_k2 < -0.5 and
-             0 < m < 3 and
-             0 < n < 3 and
+    if not (-10 < log_k1 < -0 and
+            -10 < log_k2 < -0 and
+             0 < m < 5 and
+             0 < n < 5 and
             -12 < log_sigma < 0):
-        log_debug(f"[PRIOR REJECT] Params: {params}\r\n")
+        log_debug(f"[PRIOR REJECT] Params: {params}\n")
         return -np.inf
     return 0.0
 
@@ -94,19 +94,19 @@ def log_likelihood(params, t_data, a_data, r):
 
     try:
         a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
-        a_fit = np.clip(a_fit, 1e-6, r - 1e-6)
+        a_fit = np.clip(a_fit, 1e-8, r - 1e-8)
     except Exception as e:
-        log_debug(f"[SOLVE EXCEPTION] {params} => {e}\r\n")
+        log_debug(f"[SOLVE EXCEPTION] {params} => {e}\n")
         return -np.inf
 
     if not np.all(np.isfinite(a_fit)):
-        log_debug(f"[LIKE REJECT] NaNs in a_fit — Params: {params}\r\n")
+        log_debug(f"[LIKE REJECT] NaNs in a_fit — Params: {params}\n")
         return -np.inf
     if np.any(a_fit <= 0):
-        log_debug(f"[LIKE REJECT] a_fit <= 0 — min={np.min(a_fit)}, Params: {params}\r\n")
+        log_debug(f"[LIKE REJECT] a_fit <= 0 — min={np.min(a_fit)}, Params: {params}\n")
         return -np.inf
     if np.any(a_fit >= r):
-        log_debug(f"[LIKE REJECT] a_fit >= r — max={np.max(a_fit)}, r={r}, Params: {params}\r\n")
+        log_debug(f"[LIKE REJECT] a_fit >= r — max={np.max(a_fit)}, r={r}, Params: {params}\n")
         return -np.inf
 
     sigma = 10 ** log_sigma
@@ -117,25 +117,25 @@ def log_likelihood(params, t_data, a_data, r):
 def log_posterior(params, t_data, a_data, r):
     lp = log_prior(params, t_data, a_data, r)
     if not np.isfinite(lp):
-        log_debug(f"[POST REJECT] Prior -inf — Params: {params}\r\n")
+        log_debug(f"[POST REJECT] Prior -inf — Params: {params}\n")
         return -np.inf
     ll = log_likelihood(params, t_data, a_data, r)
     if not np.isfinite(ll):
-        log_debug(f"[POST REJECT] Likelihood -inf — Params: {params}\r\n")
+        log_debug(f"[POST REJECT] Likelihood -inf — Params: {params}\n")
         return -np.inf
-    log_debug(f"[POST OK] Params: {params} => logP = {lp + ll:.3f}\r\n")
+    log_debug(f"[POST OK] Params: {params} => logP = {lp + ll:.3f}\n")
     return lp + ll
 
 
 def plot_log_posterior_slices(best_params, t_data, a_data, r, param_names):
-    print("\r\n🩺 Plotting posterior slices...")
+    print("\n🩺 Plotting posterior slices...")
     os.makedirs("diagnostic_plots", exist_ok=True)
 
     for i, name in enumerate(param_names):
         if name in ['m', 'n']:  # optional: skip for now
             continue
 
-        print(f"\r\n🔬 Scanning posterior slice for {name}")
+        print(f"\n🔬 Scanning posterior slice for {name}")
         label = name
         if "log_" in name:
             param_range = np.linspace(best_params[i] - 1, best_params[i] + 1, 200)
@@ -390,7 +390,7 @@ def process_single(task):
             fixed_params = [0.4, 1.6, -3.0]  # m, n, log_sigma guess — replace if needed
             start = scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r, method, sample, temp)
             np.save(grid_param_file, start)
-            scale_params = np.array([0.1, 0.1, 0.02, 0.02, 0.05])
+            scale_params = np.array([0.2, 0.2, 0.05, 0.05, 0.05])
         except Exception as e:
             print(f"[Grid Scan Failed] Falling back: {e}")
 
@@ -399,7 +399,7 @@ def process_single(task):
         try:
             print("📦 Using cached grid scan start params")
             start = np.load(grid_param_file)
-            scale_params = np.array([0.1, 0.1, 0.02, 0.02, 0.05])
+            scale_params = np.array([0.2, 0.2, 0.05, 0.05, 0.05])
         except Exception as e:
             print(f"[Load Failed] Could not load grid start file: {e}")
 
@@ -502,7 +502,7 @@ if __name__ == "__main__":
         t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
         a_data = np.squeeze(mat[dataset_name][0, 0]['clean_alpha_unscaled'][0, ii])
         t_data = t_data - t_data[0]
-        a_data = np.clip(a_data, 1e-6, 1 - 1e-6)
+        a_data = np.clip(a_data, 1e-8, 1 - 1e-8)
         r = np.max(a_data)
 
         # Define grid and fixed parameters

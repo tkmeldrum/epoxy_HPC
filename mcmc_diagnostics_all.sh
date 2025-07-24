@@ -23,7 +23,7 @@ set LINE_NUM = $SLURM_ARRAY_TASK_ID
 set NPZ_FILE = `sed -n "${LINE_NUM}p" $FILE_LIST`
 
 echo "Processing file: $NPZ_FILE"
-# python3 ~/epoxy_kinetics/MCMC_diagnostics.py "$NPZ_FILE"
+python3 ~/epoxy_kinetics/MCMC_diagnostics.py "$NPZ_FILE"
 python3 ~/epoxy_kinetics/BatchBayesian_plots.py "$NPZ_FILE"
 
 echo "Finished task at: `date`"

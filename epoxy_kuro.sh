@@ -6,8 +6,8 @@
 #SBATCH --mail-user=tkmeldrum@wm.edu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --time=4:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --time=10:00:00
 #SBATCH --array=1-27
 
 pwd
