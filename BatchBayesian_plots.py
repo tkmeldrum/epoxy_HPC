@@ -245,6 +245,7 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     # Filter chain and rebuild samples
     chain = chain[walker_ok]  # (n_kept, nsteps, ndim)
     samples = chain.transpose(1, 0, 2).reshape(-1, chain.shape[-1])
+    # filtered_samples = samples  # ✅ Use this for posterior summary and corner plot
     
     param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
     print(f"\n📊 Per-walker parameter stats (after burnin/stride/removing stuck walkers):")
@@ -358,14 +359,15 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
         lo, hi = np.percentile(vals, [2.5, 97.5])
         print(f"  {name:10}: {hi - lo:.3e}  (95% CI)")
 
-    # Save summary to CSV
-    summary_path = os.path.join(outdir, "posterior_summary.csv")
-    header = ["Label"] + [f"{name}_median" for name in param_names] + [f"{name}_CI_lower" for name in param_names] + [f"{name}_CI_upper" for name in param_names]
+    # Dynamically generate header to match the writing order
+    header = ["Label"]
+    for name in param_names:
+        header.extend([f"{name}_median", f"{name}_CI_lower", f"{name}_CI_upper"])
 
     # Compute values
     summary_row = [label]
     for i, name in enumerate(param_names):
-        vals = 10**samples[:, i] if "log" in name else samples[:, i]
+        vals = samples[:, i]  # ← already in linear space!
         lo, hi = np.percentile(vals, [2.5, 97.5])
         median = np.median(vals)
         summary_row.extend([median, lo, hi])
@@ -398,9 +400,15 @@ if __name__ == "__main__":
         stride = args.stride if args.stride is not None else config_stride
 
         input_dir = "mcmc_samples"
+        summary_path = "posterior_summary.csv"
+
+        # 🧹 Delete old summary if processing all files
+        if args.file is None and os.path.exists(summary_path):
+            os.remove(summary_path)
+            print("🗑️ Removed old posterior_summary.csv")
 
         def process_file(file_path):
-            file_path = file_path.strip()  # ✨ THIS LINE REMOVES \r, \n, spaces
+            file_path = file_path.strip()  # ✨ Clean up any extra characters
             label = os.path.basename(file_path).replace("_fitdata.npz", "")
             data = np.load(file_path)
             samples = data["samples"]
@@ -413,7 +421,7 @@ if __name__ == "__main__":
                        burnin=burnin, stride=stride)
 
         if args.file:
-            args.file = args.file.strip()  # ← ADD THIS
+            args.file = args.file.strip()
             if not os.path.exists(args.file):
                 print(f"❌ File not found: {args.file}", flush=True)
                 print(f"📂 Raw path: {repr(args.file)}")

@@ -4,8 +4,8 @@
 #SBATCH --error=/sciclone/home/tkmeldrum/epoxy_kinetics/logs/%x_%A_%a.err
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=tkmeldrum@wm.edu
-#SBATCH --nodes=4
-#SBATCH --ntasks=4
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=02:00:00
 #SBATCH --array=1-27  # Update this once you count the lines in your list
