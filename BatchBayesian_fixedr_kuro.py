@@ -30,14 +30,12 @@ from tqdm import tqdm
 # Config
 from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
 
-
-LOG_FILE = "posterior_debug.log"
-if os.path.exists(LOG_FILE):
-    os.remove(LOG_FILE)
+LOG_FILE = None  # placeholder
 
 def log_debug(msg):
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{datetime.now().isoformat()}] {msg}\r\n")
+    if LOG_FILE:
+        with open(LOG_FILE, "a") as f:
+            f.write(f"[{datetime.now().isoformat()}] {msg}\r\n")
 
 # param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
 param_names = ['log_k1', 'log_k2', 'm', 'n', 'log_sigma']
@@ -350,6 +348,16 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
 def process_single(task):
     method, sample, temp = task
     print(f"Fitting {method} {sample} at {temp} °C")
+
+    global LOG_FILE
+    label = f"{method}_{sample}_{temp}C"
+    os.makedirs("logs", exist_ok=True)
+    LOG_FILE = f"logs/{label}_debug.log"
+
+    # Overwrite old content
+    with open(LOG_FILE, "w") as f:
+        f.write(f"🔍 Log for {label} started\n")
+
 
     dataset_name = 'NMR' if method == 'NMR' else sample
     index_map = {'NMR': [25, 33, 40], 'DSC': [25, 33, 50, 60, 80, 100]}

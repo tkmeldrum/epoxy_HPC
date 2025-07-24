@@ -23,6 +23,7 @@ if not os.path.exists(csv_path):
         f.write("label,parameter,tau,neff,rhat\n")
 
 def load_chain_data(npz_path):
+    npz_path = npz_path.strip()  # ✨ THIS LINE REMOVES \r, \n, spaces
     data = np.load(npz_path)
     samples = data["samples"]
     chain = data["chain"]

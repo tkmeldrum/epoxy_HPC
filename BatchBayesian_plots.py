@@ -8,10 +8,13 @@ from matplotlib import image as mpimg
 import corner
 import argparse
 from scipy.integrate import solve_ivp
+from scipy.spatial.distance import mahalanobis
+from mcmc_config import overlay_n as default_overlay_n, burnin as default_burnin, stride as default_stride
 from numpy import gradient
 from datetime import datetime
 import time
 import traceback
+import csv
 
 from mcmc_config import overlay_n, nwalkers, nsteps
 
@@ -197,8 +200,6 @@ def make_summary_grid(label, outdir="fit_plots"):
     plt.close(fig)
 
 def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", overlay_n=None, burnin=None, stride=None):
-    from scipy.spatial.distance import mahalanobis
-    from mcmc_config import overlay_n as default_overlay_n, burnin as default_burnin, stride as default_stride
     if burnin is None:
         burnin = default_burnin
     if stride is None:
@@ -254,14 +255,11 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
             std = np.std(chain[w, :, i])
             print(f"   {name:10s} → mean = {mean:+.5f}, std = {std:.2e}")
 
-
-
     # Randomly sample posterior draws
     idx = np.random.choice(len(samples), size=min(overlay_n, len(samples)), replace=False)
     subset = samples[idx]
 
     print(f"🧪 overlay_n = {overlay_n}, subset.shape = {subset.shape}")
-
 
     # Solve and filter
     alpha_preds = []
@@ -272,7 +270,6 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
         a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
         # print(f"▶ solve_model returned: {a_fit}")
         # print(f"▶ isfinite: {np.all(np.isfinite(a_fit))}, any nans? {np.any(np.isnan(a_fit))}")
-
 
         if not np.all(np.isfinite(a_fit)):
             print(f"💩 NaNs in a_fit | params: {p}")
@@ -298,7 +295,6 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
         if max_ok and min_ok and final_close and monotonic:
             alpha_preds.append(a_fit)
             filtered_subset.append(p)
-
 
         # === stricter filtering ===
         # if (
@@ -336,7 +332,6 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
         # Don't trust your goddamn indentation.
         # ---------------------------------------
 
-
     alpha_preds = np.array(alpha_preds)
     filtered_subset = np.array(filtered_subset)
 
@@ -363,6 +358,26 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
         lo, hi = np.percentile(vals, [2.5, 97.5])
         print(f"  {name:10}: {hi - lo:.3e}  (95% CI)")
 
+    # Save summary to CSV
+    summary_path = os.path.join(outdir, "posterior_summary.csv")
+    header = ["Label"] + [f"{name}_median" for name in param_names] + [f"{name}_CI_lower" for name in param_names] + [f"{name}_CI_upper" for name in param_names]
+
+    # Compute values
+    summary_row = [label]
+    for i, name in enumerate(param_names):
+        vals = 10**samples[:, i] if "log" in name else samples[:, i]
+        lo, hi = np.percentile(vals, [2.5, 97.5])
+        median = np.median(vals)
+        summary_row.extend([median, lo, hi])
+
+    # Write row (append mode)
+    write_header = not os.path.exists(summary_path)
+    with open(summary_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        if write_header:
+            writer.writerow(header)
+        writer.writerow(summary_row)
+
 
 def load_npz_files(directory):
     for file in os.listdir(directory):
@@ -385,6 +400,7 @@ if __name__ == "__main__":
         input_dir = "mcmc_samples"
 
         def process_file(file_path):
+            file_path = file_path.strip()  # ✨ THIS LINE REMOVES \r, \n, spaces
             label = os.path.basename(file_path).replace("_fitdata.npz", "")
             data = np.load(file_path)
             samples = data["samples"]
@@ -397,8 +413,10 @@ if __name__ == "__main__":
                        burnin=burnin, stride=stride)
 
         if args.file:
+            args.file = args.file.strip()  # ← ADD THIS
             if not os.path.exists(args.file):
                 print(f"❌ File not found: {args.file}", flush=True)
+                print(f"📂 Raw path: {repr(args.file)}")
             else:
                 process_file(args.file)
         else:
