@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
+#SBATCH --time=00:15:00
 #SBATCH --array=1-27  # Update this once you count the lines in your list
 
 echo "Running on host: `hostname`"
@@ -23,7 +23,7 @@ set LINE_NUM = $SLURM_ARRAY_TASK_ID
 set NPZ_FILE = `sed -n "${LINE_NUM}p" $FILE_LIST`
 
 echo "Processing file: $NPZ_FILE"
-python3 ~/epoxy_kinetics/MCMC_diagnostics.py "$NPZ_FILE"
+# python3 ~/epoxy_kinetics/MCMC_diagnostics.py "$NPZ_FILE"
 python3 ~/epoxy_kinetics/BatchBayesian_plots.py "$NPZ_FILE"
 
 echo "Finished task at: `date`"

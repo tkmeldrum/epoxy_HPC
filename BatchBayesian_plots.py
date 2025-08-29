@@ -55,14 +55,14 @@ def plot_posterior_overlay(alpha_preds, t_data, a_data, label, outdir):
     # Median fit
     median_fit = np.nanmedian(alpha_preds, axis=0)
 
-    # Plot all posterior fits
+    # Overlay data and median
     plt.figure()
+    plt.plot(t_data, a_data, 'k.', markersize=8, label="Data")
+    plt.plot(t_data, median_fit, 'r-', lw=2, label="Median Fit")
+    
+    # Plot all posterior fits
     for a_fit in alpha_preds:
         plt.plot(t_data, a_fit, color='red', alpha=0.1)
-
-    # Overlay data and median
-    plt.plot(t_data, median_fit, 'r-', lw=2, label="Median Fit")
-    plt.plot(t_data, a_data, 'k.', label="Data")
 
     plt.xlabel("Time")
     plt.ylabel("α(t)")
@@ -78,6 +78,8 @@ def plot_alpha_confidence_band(alpha_preds, t_data, a_data, label, outdir):
     median_alpha = np.nanmedian(alpha_preds, axis=0)
     lower_alpha = np.nanpercentile(alpha_preds, 2.5, axis=0)
     upper_alpha = np.nanpercentile(alpha_preds, 97.5, axis=0)
+
+    # print(f"{lower_alpha} < {median_alpha} < {upper_alpha}")
 
     # Determine y-axis limits based on a_data only
     y_min = np.min(a_data)
@@ -119,9 +121,9 @@ def plot_dadt_vs_alpha(alpha_preds, t_data, a_data, label, outdir):
 
     # Plot
     plt.figure()
-    plt.plot(median_alpha, median_dadt, 'r-', label="Median Posterior")
-    plt.fill_between(median_alpha, lower_dadt, upper_dadt, color='red', alpha=0.3, label="95% CI")
     plt.plot(a_data, dadt_data, 'k.', label="Raw Data")
+    plt.fill_between(median_alpha, lower_dadt, upper_dadt, color='red', alpha=0.3, label="95% CI")
+    plt.plot(median_alpha, median_dadt, 'r-', label="Median Posterior")
 
     plt.xlabel("α")
     plt.ylabel("dα/dt")
@@ -403,9 +405,9 @@ if __name__ == "__main__":
         summary_path = "posterior_summary.csv"
 
         # 🧹 Delete old summary if processing all files
-        if args.file is None and os.path.exists(summary_path):
-            os.remove(summary_path)
-            print("🗑️ Removed old posterior_summary.csv")
+        # if os.path.exists(summary_path):
+        #     os.remove(summary_path)
+        #     print("🗑️ Removed old posterior_summary.csv")
 
         def process_file(file_path):
             file_path = file_path.strip()  # ✨ Clean up any extra characters
