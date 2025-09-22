@@ -47,7 +47,7 @@ nmr_temps = [25, 33, 40]
 mat = loadmat('epoxy_data.mat')
 
 try:
-    fit_csv = pd.read_csv("fit_results/combined_results.csv", engine='python')
+    fit_csv = pd.read_csv("fit_results/fixed_r/combined_results.csv", engine='python')
     fit_csv = fit_csv.copy(deep=True)  # ensure safe read-only behavior
 except Exception as e:
     print(f"[Warning] Could not load combined_results.csv for initial guesses: {e}")
@@ -480,7 +480,7 @@ if __name__ == "__main__":
     parser.add_argument("--grid_scan", action="store_true", help="Run posterior grid scan instead of MCMC")
     args = parser.parse_args()
 
-    output_dir = "fit_results"
+    output_dir = "fit_results/fixed_r"
     os.makedirs(output_dir, exist_ok=True)
 
     if args.grid_scan:
