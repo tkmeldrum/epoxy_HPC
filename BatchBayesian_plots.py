@@ -140,22 +140,23 @@ def plot_corner(samples, label, outdir):
     upper_bounds = np.quantile(samples, 0.99, axis=0)
     mask = np.all((samples >= lower_bounds) & (samples <= upper_bounds), axis=1)
     filtered = samples[mask]
+    ndim = filtered.shape[1]
+    labels = build_param_names(ndim)       # ← dynamic
 
     # Plot with nice range control
     ranges = [
         (np.percentile(filtered[:, i], 0.5), np.percentile(filtered[:, i], 99.5))
-        for i in range(filtered.shape[1])
+        for i in range(ndim)
     ]
 
-    fig = corner.corner(filtered, labels=["log_k1", "log_k2", "m", "n", "log_sigma"], range=ranges)
+    fig = corner.corner(filtered, labels=labels, range=ranges)
     fig.savefig(f"{outdir}/{label}_corner.png", dpi=300)
     plt.close(fig)
-
 
 def plot_chains(chain, label, outdir):
     nwalkers, nsteps, ndim = chain.shape
     fig, axes = plt.subplots(ndim, 1, figsize=(10, 2 * ndim), sharex=True)
-    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
+    param_names = build_param_names(ndim)  # ← dynamic
 
     for i in range(ndim):
         ax = axes[i]
@@ -168,7 +169,6 @@ def plot_chains(chain, label, outdir):
     fig.tight_layout()
     fig.savefig(f"{outdir}/{label}_chains.png", dpi=300)
     plt.close(fig)
-
 
 def make_summary_grid(label, outdir="fit_plots"):
     fig, axes = plt.subplots(3, 2, figsize=(12, 14))
@@ -249,7 +249,7 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     samples = chain.transpose(1, 0, 2).reshape(-1, chain.shape[-1])
     # filtered_samples = samples  # ✅ Use this for posterior summary and corner plot
     
-    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
+    param_names = ["log_k1", "log_k2", "m", "n", "r", "log_sigma"]
     print(f"\n📊 Per-walker parameter stats (after burnin/stride/removing stuck walkers):")
     for w in range(chain.shape[0]):
         print(f"\n🧍 Walker {w}:")
@@ -269,7 +269,7 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     filtered_subset = []
 
     for p in subset:
-        log_k1, log_k2, m, n, log_sigma = p
+        log_k1, log_k2, m, n, r, log_sigma = p
         a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
         # print(f"▶ solve_model returned: {a_fit}")
         # print(f"▶ isfinite: {np.all(np.isfinite(a_fit))}, any nans? {np.any(np.isnan(a_fit))}")
@@ -352,8 +352,9 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     print(f"✅ Finished all plots for {label} in {time.time() - start_time:.2f}s", flush=True)
 
     # === CI width diagnostic ===
-    param_names = ["log_k1", "log_k2", "m", "n", "log_sigma"]
     samples = np.array(filtered_subset)
+    ndim = samples.shape[1]
+    param_names = build_param_names(ndim)  # ← dynamic
 
     print(f"\n📊 95% CI widths for {label}:")
     for i, name in enumerate(param_names):
@@ -382,12 +383,30 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
             writer.writerow(header)
         writer.writerow(summary_row)
 
-
 def load_npz_files(directory):
     for file in os.listdir(directory):
         if file.endswith("_fitdata.npz"):
             yield os.path.join(directory, file)
 
+def build_param_names(ndim: int):
+    """
+    Return parameter names in the expected order given the number of columns.
+    Assumes base params: log_k1, log_k2, m, n, (optional r), log_sigma
+    """
+    base = ["log_k1", "log_k2", "m", "n"]
+    if ndim == 4:
+        return base
+    if ndim == 5:
+        # Most runs include noise; if r is fixed, columns are base + log_sigma
+        return base + ["log_sigma"]
+    if ndim >= 6:
+        # When r is free, expected order is base + r + log_sigma
+        names = base + ["r", "log_sigma"]
+        # If there are any extra cols, give them generic names to avoid crashes
+        if ndim > 6:
+            names += [f"extra_{i}" for i in range(ndim - 6)]
+        return names
+    
 if __name__ == "__main__":
     try:
         parser = argparse.ArgumentParser(description="Plot MCMC results from saved .npz files.")

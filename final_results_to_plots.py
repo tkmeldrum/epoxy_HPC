@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 import matplotlib
 matplotlib.use("Agg")  # For headless environments
 import matplotlib.pyplot as plt
@@ -12,111 +13,180 @@ samples = ['EDA', 'DAP', 'DAB']
 methods = ['DSC', 'NMR']
 colors = {'DSC': 'red', 'NMR': 'blue'}
 
-# === Helper ===
+# === Helpers ===
+# Parameters we care about, in order
+ALL_PARAMS = ["k1", "k2", "m", "n", "r"]  # r is optional
+
+# Nice labels for plotting (edit as you prefer)
+PLOT_LABEL = {
+    "k1": "ln(k₁)",
+    "k2": "ln(k₂)",
+    "m": "m",
+    "n": "n",
+    "r": "r",
+}
+
+# def present_params(df):
+#     """
+#     Detect which parameters actually exist in the input dataframe.
+#     Looks for columns like '<p>_median' (e.g., 'r_median').
+#     Order is preserved (k1,k2,m,n[,r]).
+#     """
+#     present = []
+#     for p in ALL_PARAMS:
+#         # accept either '<p>_median' or 'log_<p>_median'
+#         if f"{p}_median" in df.columns or f"log_{p}_median" in df.columns:
+#             present.append(p)
+#     return present
+
+def ensure_fit_unc_columns(df):
+    def add_param(p, is_log=False):
+        src = f"log_{p}" if is_log else p
+        df[f"Fit_{p}"] = df[f"{src}_median"]
+        df[f"Unc_{p}"] = 0.5 * (df[f"{src}_CI_upper"] - df[f"{src}_CI_lower"])
+
+    # k1/k2: prefer your existing creation, otherwise fill here
+    for p in ("k1", "k2"):
+        if f"Fit_{p}" not in df:
+            if f"log_{p}_median" in df.columns:
+                add_param(p, is_log=True)
+            elif f"{p}_median" in df.columns:
+                add_param(p, is_log=False)
+
+    # m, n
+    for p in ("m", "n"):
+        if f"Fit_{p}" not in df and f"{p}_median" in df.columns:
+            add_param(p, is_log=False)
+
+    # r (optional)
+    if f"Fit_r" not in df and "r_median" in df.columns:
+        add_param("r", is_log=False)
+
 def parse_label(label):
-    parts = label.split('_')
-    return parts[0], parts[1], int(parts[2][:-1])  # e.g., DSC_EDA_50C
+    # e.g., "DSC_EDA_50C" → ("DSC","EDA",50)
+    m = re.match(r"^([A-Za-z]+)_([A-Za-z]+)_(\d+)[cC]$", label.strip())
+    if not m:
+        raise ValueError(f"Unrecognized label format: {label}")
+    method, sample, tempC = m.group(1), m.group(2), int(m.group(3))
+    return method, sample, tempC
 
 # === Plot 1: Parameter trends vs 1/T ===
 def plot_extended_arrhenius(df, x_col='1/T [K-1]',
-                             ylim_k=(-10, 0), ylim_m=(0, 2.5), ylim_n=(0, 2.5), ylim_r=(0, 1)):
-    fig, axes = plt.subplots(3, 4, figsize=(20, 10), sharex=True)
+                            ylim_k=(-10, 0), ylim_m=(0, 2.5), ylim_n=(0, 2.5), ylim_r=(0, 1)):
+
+    params = [p for p in ("k1","k2","m","n","r") if f"Fit_{p}" in df.columns]
+    if not params:
+        fig = plt.figure(figsize=(4,3))
+        plt.text(0.5, 0.5, "No parameters to plot", ha='center', va='center')
+        plt.axis("off")
+        return fig
+    ncols = len(params)
+    fig, axes = plt.subplots(len(samples), ncols, figsize=(5*ncols, 3.2*len(samples)), sharex=True, squeeze=False)
     fig.subplots_adjust(hspace=0.4, wspace=0.3)
+
+    def _ylim_for(p):
+        if p in ("k1","k2"): return ylim_k
+        if p == "m": return ylim_m
+        if p == "n": return ylim_n
+        if p == "r": return ylim_r
+        return None
 
     for i, sample in enumerate(samples):
         for method in methods:
             subset = df[(df['Sample'] == sample) & (df['Method'] == method)]
-            if not subset.empty:
-                x = subset[x_col]
+            if subset.empty:
+                continue
+            x = subset[x_col].values
 
-                # ln(k1)
-                y1 = subset['Fit_k1']
-                yerr1 = subset['Unc_k1']
-                axes[i, 0].errorbar(x, y1, yerr=yerr1, fmt='o', color=colors[method], capsize=3, label=method)
-                axes[i, 0].set_ylim(*ylim_k)
-                axes[i, 0].set_title(f'{sample} - ln(k₁)')
+            for j, p in enumerate(params):
+                y    = subset[f"Fit_{p}"].values
+                yerr = subset[f"Unc_{p}"].values
+                
+                # convert log10(k) → ln(k) for k1/k2 so labels stay correct
+                if p in ("k1", "k2"):
+                    y    = y * np.log(10.0)
+                    yerr = yerr * np.log(10.0)
 
-                # ln(k2)
-                y2 = subset['Fit_k2']
-                yerr2 = subset['Unc_k2']
-                axes[i, 1].errorbar(x, y2, yerr=yerr2, fmt='o', color=colors[method], capsize=3)
-                axes[i, 1].set_ylim(*ylim_k)
-                axes[i, 1].set_title(f'{sample} - ln(k₂)')
+                axes[i, j].errorbar(x, y, yerr=yerr, fmt='o', color=colors[method], capsize=3, label=method)
+                yl = _ylim_for(p)
+                if yl is not None:
+                    axes[i, j].set_ylim(*yl)
+                axes[i, j].set_title(f'{sample} - {PLOT_LABEL[p]}')
 
-                # m
-                y3 = subset['Fit_m']
-                yerr3 = subset['Unc_m']
-                axes[i, 2].errorbar(x, y3, yerr=yerr3, fmt='o', color=colors[method], capsize=3)
-                axes[i, 2].set_ylim(*ylim_m)
-                axes[i, 2].set_title(f'{sample} - m')
+        # x-labels on last row
+        for j, p in enumerate(params):
+            if i == len(samples) - 1:
+                axes[i, j].set_xlabel('1/T [K$^{-1}$]')
+            # y-labels on first method only (DSC gate) – keep your style
+            if "DSC" in methods and j < ncols:
+                axes[i, j].set_ylabel(PLOT_LABEL[params[j]])
 
-                # n
-                y4 = subset['Fit_n']
-                yerr4 = subset['Unc_n']
-                axes[i, 3].errorbar(x, y4, yerr=yerr4, fmt='o', color=colors[method], capsize=3)
-                axes[i, 3].set_ylim(*ylim_n)
-                axes[i, 3].set_title(f'{sample} - n')
+    # One legend per row (on last axis in the row)
+    for i in range(len(samples)):
+        axes[i, -1].legend(title='Method', fontsize=8, frameon=False)
 
-                # # r
-                # y5 = subset['Fit_r']
-                # yerr5 = subset['Unc_r']
-                # axes[i, 4].errorbar(x, y5, yerr=yerr5, fmt='o', color=colors[method], capsize=3)
-                # axes[i, 4].set_ylim(*ylim_r)
-                # axes[i, 4].set_title(f'{sample} - r')
-
-            if i == 2:
-                for j in range(4):
-                    axes[i, j].set_xlabel('1/T [K$^{-1}$]')
-            if method == 'DSC':
-                axes[i, 0].set_ylabel('ln(k₁)')
-                axes[i, 1].set_ylabel('ln(k₂)')
-                axes[i, 2].set_ylabel('m')
-                axes[i, 3].set_ylabel('n')
-                # axes[i, 4].set_ylabel('r')
-
-    axes[0, 0].legend(title='Method')
-    axes[0, 1].legend(title='Method')
     plt.suptitle('Parameter Trends vs 1/T (K$^{-1}$)', fontsize=18)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     return fig
 
 # === Plot 2: ln(k) Arrhenius fits ===
 def plot_arrhenius_fits(df):
-    fig, axes = plt.subplots(3, 2, figsize=(14, 12), sharex=True)
+    k_cols = [(p, f"Fit_{p}", f"Unc_{p}") for p in ("k1","k2") if f"Fit_{p}" in df.columns]
+    if not k_cols:
+        # Nothing to plot
+        fig = plt.figure(figsize=(4, 3))
+        plt.text(0.5, 0.5, "No k-parameters found", ha='center', va='center')
+        plt.axis("off")
+        return fig
+
+    ncols = len(k_cols)
+    fig, axes = plt.subplots(len(samples), ncols, figsize=(5*ncols, 3.8*len(samples)), sharex=True, squeeze=False)
     fig.subplots_adjust(hspace=0.4, wspace=0.3)
 
     for i, sample in enumerate(samples):
-        for j, (fit_col, unc_col, title) in enumerate([('Fit_k1', 'Unc_k1', 'ln(k₁)'), ('Fit_k2', 'Unc_k2', 'ln(k₂)')]):
+        for j, (p, fit_col, unc_col) in enumerate(k_cols):
             ax = axes[i, j]
             for method in methods:
                 subset = df[(df['Sample'] == sample) & (df['Method'] == method)]
                 if subset.empty:
                     continue
                 x = subset['1/T [K-1]'].values
-                y = subset[fit_col].values*np.log(10)
-                yerr = subset[unc_col].values *np.log(10)
+                y = subset[fit_col].values * np.log(10.0)
+                yerr = subset[unc_col].values * np.log(10.0)
 
-                popt, pcov = curve_fit(lambda x, m, b: m * x + b, x, y, sigma=yerr, absolute_sigma=True)
+                if x.size < 2:
+                    # Not enough points to fit; still plot the points/errbars
+                    ax.errorbar(x, y, yerr=yerr, fmt='o', color=colors[method], capsize=3, label=f'{method} data')
+                    continue
+
+                # Avoid zero sigmas to keep curve_fit happy
+                if np.any(yerr <= 0) or np.allclose(yerr, 0):
+                    yerr = None
+                    popt, pcov = curve_fit(lambda X, m, b: m*X + b, x, y)
+                    perr = np.sqrt(np.diag(pcov))
+                else:
+                    popt, pcov = curve_fit(lambda X, m, b: m*X + b, x, y, sigma=yerr, absolute_sigma=True)
+                    perr = np.sqrt(np.diag(pcov))
+
                 slope, intercept = popt
-                perr = np.sqrt(np.diag(pcov))
-
-                x_fit = np.linspace(min(x), max(x), 100)
+                x_fit = np.linspace(x.min(), x.max(), 100)
                 y_fit = slope * x_fit + intercept
+
                 ax.errorbar(x, y, yerr=yerr, fmt='o', color=colors[method], capsize=3, label=f'{method} data')
                 ax.plot(x_fit, y_fit, '--', color=colors[method], label=f'{method} fit')
 
-                Ea = -slope * R / 1000
-                Ea_err = perr[0] * R / 1000
-                ax.text(0.65, 0.1 - 0.12 * methods.index(method),
+                Ea     = -slope * R / 1000.0
+                Ea_err =  perr[0] * R / 1000.0 if perr.size>0 else np.nan
+                ax.text(0.62, 0.12 - 0.12 * methods.index(method),
                         f"{method}: Ea={Ea:.1f}±{Ea_err:.1f} kJ/mol",
                         transform=ax.transAxes, fontsize=8, color=colors[method])
 
-            ax.set_title(f'{sample} - {title}')
+            ax.set_title(f'{sample} – ln(k{1 if p=="k1" else 2})')
             ax.set_ylim(-20, -2)
-            if i == 2:
+            if i == len(samples) - 1:
                 ax.set_xlabel('1/T [K⁻¹]')
             if j == 0:
-                ax.set_ylabel(f'{title}')
+                ax.set_ylabel('ln(k)')
             ax.legend(fontsize=8)
             ax.grid(True)
 
@@ -139,8 +209,9 @@ if __name__ == "__main__":
     df['Unc_m'] = np.abs(df['m_CI_upper'] - df['m_CI_lower']) / 2
     df['Fit_n'] = df['n_median']
     df['Unc_n'] = np.abs(df['n_CI_upper'] - df['n_CI_lower']) / 2
-    df['Fit_r'] = 1.0
-    df['Unc_r'] = 0.0
+    ensure_fit_unc_columns(df)
+    # df['Fit_r'] = 1.0
+    # df['Unc_r'] = 0.0
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 

@@ -42,7 +42,7 @@ set TEMP   = $TEMPS[${SLURM_ARRAY_TASK_ID}]
 echo "Running task ${SLURM_ARRAY_TASK_ID}: $METHOD $SAMPLE $TEMP"
 
 # Run the Python script
-python3 ~/epoxy_kinetics/BatchBayesian_fixedr_kuro.py $METHOD $SAMPLE $TEMP
+python3 ~/epoxy_kinetics/BatchBayesian_kuro.py $METHOD $SAMPLE $TEMP
 
 echo "Finished task ${SLURM_ARRAY_TASK_ID}: $METHOD $SAMPLE $TEMP"
 echo "Finished at: `date`"
