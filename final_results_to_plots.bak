@@ -14,8 +14,10 @@ methods = ['DSC', 'NMR', 'NMR2']
 colors = {'DSC': 'red', 'NMR': 'blue', 'NMR2': 'green'}
 
 # === Helpers ===
+# Parameters we care about, in order
 ALL_PARAMS = ["k1", "k2", "m", "n", "r"]  # r is optional
 
+# Nice labels for plotting (edit as you prefer)
 PLOT_LABEL = {
     "k1": "ln(k₁)",
     "k2": "ln(k₂)",
@@ -24,12 +26,26 @@ PLOT_LABEL = {
     "r": "r",
 }
 
+# def present_params(df):
+#     """
+#     Detect which parameters actually exist in the input dataframe.
+#     Looks for columns like '<p>_median' (e.g., 'r_median').
+#     Order is preserved (k1,k2,m,n[,r]).
+#     """
+#     present = []
+#     for p in ALL_PARAMS:
+#         # accept either '<p>_median' or 'log_<p>_median'
+#         if f"{p}_median" in df.columns or f"log_{p}_median" in df.columns:
+#             present.append(p)
+#     return present
+
 def ensure_fit_unc_columns(df):
     def add_param(p, is_log=False):
         src = f"log_{p}" if is_log else p
         df[f"Fit_{p}"] = df[f"{src}_median"]
         df[f"Unc_{p}"] = 0.5 * (df[f"{src}_CI_upper"] - df[f"{src}_CI_lower"])
 
+    # k1/k2: prefer your existing creation, otherwise fill here
     for p in ("k1", "k2"):
         if f"Fit_{p}" not in df:
             if f"log_{p}_median" in df.columns:
@@ -37,14 +53,17 @@ def ensure_fit_unc_columns(df):
             elif f"{p}_median" in df.columns:
                 add_param(p, is_log=False)
 
+    # m, n
     for p in ("m", "n"):
         if f"Fit_{p}" not in df and f"{p}_median" in df.columns:
             add_param(p, is_log=False)
 
+    # r (optional)
     if f"Fit_r" not in df and "r_median" in df.columns:
         add_param("r", is_log=False)
 
 def parse_label(label):
+    # e.g., "DSC_EDA_50C" → ("DSC","EDA",50)
     m = re.match(r"^([A-Za-z]+)_([A-Za-z0-9]+)_(\d+)[cC]$", label.strip())
     if not m:
         raise ValueError(f"Unrecognized label format: {label}")
@@ -53,7 +72,7 @@ def parse_label(label):
 
 # === Plot 1: Parameter trends vs 1/T ===
 def plot_extended_arrhenius(df, x_col='1/T [K-1]',
-                            ylim_m=(0, 2.5), ylim_n=(0, 2.5), ylim_r=(0, 1)):
+                            ylim_k=(-10, 0), ylim_m=(0, 2.5), ylim_n=(0, 2.5), ylim_r=(0, 1)):
 
     params = [p for p in ("k1","k2","m","n","r") if f"Fit_{p}" in df.columns]
     if not params:
@@ -66,7 +85,7 @@ def plot_extended_arrhenius(df, x_col='1/T [K-1]',
     fig.subplots_adjust(hspace=0.4, wspace=0.3)
 
     def _ylim_for(p):
-        if p in ("k1","k2"): return None  # autoscale
+        if p in ("k1","k2"): return None #autoscale
         if p == "m": return ylim_m
         if p == "n": return ylim_n
         if p == "r": return ylim_r
@@ -82,7 +101,8 @@ def plot_extended_arrhenius(df, x_col='1/T [K-1]',
             for j, p in enumerate(params):
                 y    = subset[f"Fit_{p}"].values
                 yerr = subset[f"Unc_{p}"].values
-
+                
+                # convert log10(k) → ln(k) for k1/k2 so labels stay correct
                 if p in ("k1", "k2"):
                     y    = y * np.log(10.0)
                     yerr = yerr * np.log(10.0)
@@ -93,12 +113,15 @@ def plot_extended_arrhenius(df, x_col='1/T [K-1]',
                     axes[i, j].set_ylim(*yl)
                 axes[i, j].set_title(f'{sample} - {PLOT_LABEL[p]}')
 
+        # x-labels on last row
         for j, p in enumerate(params):
             if i == len(samples) - 1:
                 axes[i, j].set_xlabel('1/T [K$^{-1}$]')
+            # y-labels on first method only (DSC gate) – keep your style
             if "DSC" in methods and j < ncols:
                 axes[i, j].set_ylabel(PLOT_LABEL[params[j]])
 
+    # One legend per row (on last axis in the row)
     for i in range(len(samples)):
         axes[i, -1].legend(title='Method', fontsize=8, frameon=False)
 
@@ -107,18 +130,10 @@ def plot_extended_arrhenius(df, x_col='1/T [K-1]',
     return fig
 
 # === Plot 2: ln(k) Arrhenius fits ===
-def plot_arrhenius_fits(df, fit_methods=None):
-    """
-    df: dataframe used for both scatter points and fits.
-    fit_methods: which methods to draw fit lines for. Defaults to all in `methods`.
-                 Pass ['DSC', 'NMR'] to suppress NMR2 fit line while still
-                 showing NMR2 scatter points (if NMR2 rows exist in df).
-    """
-    if fit_methods is None:
-        fit_methods = methods
-
+def plot_arrhenius_fits(df):
     k_cols = [(p, f"Fit_{p}", f"Unc_{p}") for p in ("k1","k2") if f"Fit_{p}" in df.columns]
     if not k_cols:
+        # Nothing to plot
         fig = plt.figure(figsize=(4, 3))
         plt.text(0.5, 0.5, "No k-parameters found", ha='center', va='center')
         plt.axis("off")
@@ -131,21 +146,7 @@ def plot_arrhenius_fits(df, fit_methods=None):
     for i, sample in enumerate(samples):
         for j, (p, fit_col, unc_col) in enumerate(k_cols):
             ax = axes[i, j]
-
-            # --- scatter: show all methods ---
             for method in methods:
-                subset = df[(df['Sample'] == sample) & (df['Method'] == method)]
-                if subset.empty:
-                    continue
-                x = subset['1/T [K-1]'].values
-                y = subset[fit_col].values * np.log(10.0)
-                yerr = subset[unc_col].values * np.log(10.0)
-                ax.errorbar(x, y, yerr=yerr, fmt='o', color=colors[method],
-                            capsize=3, label=f'{method} data')
-
-            # --- fit lines: only for fit_methods ---
-            text_offset = 0
-            for method in fit_methods:
                 subset = df[(df['Sample'] == sample) & (df['Method'] == method)]
                 if subset.empty:
                     continue
@@ -154,33 +155,34 @@ def plot_arrhenius_fits(df, fit_methods=None):
                 yerr = subset[unc_col].values * np.log(10.0)
 
                 if x.size < 2:
+                    # Not enough points to fit; still plot the points/errbars
+                    ax.errorbar(x, y, yerr=yerr, fmt='o', color=colors[method], capsize=3, label=f'{method} data')
                     continue
 
+                # Avoid zero sigmas to keep curve_fit happy
                 if np.any(yerr <= 0) or np.allclose(yerr, 0):
+                    yerr = None
                     popt, pcov = curve_fit(lambda X, m, b: m*X + b, x, y)
+                    perr = np.sqrt(np.diag(pcov))
                 else:
-                    popt, pcov = curve_fit(lambda X, m, b: m*X + b, x, y,
-                                           sigma=yerr, absolute_sigma=True)
-                perr = np.sqrt(np.diag(pcov))
+                    popt, pcov = curve_fit(lambda X, m, b: m*X + b, x, y, sigma=yerr, absolute_sigma=True)
+                    perr = np.sqrt(np.diag(pcov))
 
                 slope, intercept = popt
                 x_fit = np.linspace(x.min(), x.max(), 100)
                 y_fit = slope * x_fit + intercept
 
+                ax.errorbar(x, y, yerr=yerr, fmt='o', color=colors[method], capsize=3, label=f'{method} data')
                 ax.plot(x_fit, y_fit, '--', color=colors[method], label=f'{method} fit')
 
                 Ea     = -slope * R / 1000.0
-                Ea_err = perr[0] * R / 1000.0 if perr.size > 0 else np.nan
-                ax.text(0.62, 0.12 - 0.10 * text_offset,
+                Ea_err =  perr[0] * R / 1000.0 if perr.size>0 else np.nan
+                ax.text(0.62, 0.12 - 0.10 * methods.index(method),
                         f"{method}: Ea={Ea:.1f}±{Ea_err:.1f} kJ/mol",
                         transform=ax.transAxes, fontsize=8, color=colors[method])
-                text_offset += 1
-            # Clamp autoscale within sensible bounds
-            ymin, ymax = ax.get_ylim()
-            hard_min, hard_max = (-20, 0) if p == "k1" else (-10, 0)
-            ax.set_ylim(max(ymin, hard_min), min(ymax, hard_max))
-            
+
             ax.set_title(f'{sample} – ln(k{1 if p=="k1" else 2})')
+            ax.set_ylim(-20, 0)
             if i == len(samples) - 1:
                 ax.set_xlabel('1/T [K⁻¹]')
             if j == 0:
@@ -196,9 +198,7 @@ def plot_arrhenius_fits(df, fit_methods=None):
 if __name__ == "__main__":
     df = pd.read_csv("posterior_summary.csv")
     df[['Method', 'Sample', 'Temp']] = df['Label'].apply(lambda x: pd.Series(parse_label(x)))
-    df['1/T [K-1]'] = 1 / (df['Temp'] + 273.15)
-
-    # Remap DAP2 → DAP sample, NMR2 method
+    df['1/T [K-1]'] = 1 / (df['Temp']+273.15)
     df.loc[df['Sample'] == 'DAP2', 'Method'] = 'NMR2'
     df.loc[df['Sample'] == 'DAP2', 'Sample'] = 'DAP'
 
@@ -212,19 +212,22 @@ if __name__ == "__main__":
     df['Fit_n'] = df['n_median']
     df['Unc_n'] = np.abs(df['n_CI_upper'] - df['n_CI_lower']) / 2
     ensure_fit_unc_columns(df)
+    # df['Fit_r'] = 1.0
+    # df['Unc_r'] = 0.0
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
-    # Plot 1: parameter trends (show NMR and NMR2 as separate colors)
     fig1 = plot_extended_arrhenius(df)
     fig1.savefig(f"fit_trends_{timestamp}.pdf")
 
-    # Plot 2: Arrhenius fits
-    # Combine NMR2 DAP into NMR for fitting (6 points for DAP NMR fit)
-    # but keep NMR2 scatter points visible
+    # For Arrhenius fitting, combine NMR and NMR2 DAP points under NMR
     dap_nmr2 = df[(df['Sample'] == 'DAP') & (df['Method'] == 'NMR2')].copy()
     dap_nmr2['Method'] = 'NMR'
     df_fit = pd.concat([df, dap_nmr2], ignore_index=True)
 
-    fig2 = plot_arrhenius_fits(df_fit, fit_methods=['DSC', 'NMR'])
+    fig2 = plot_arrhenius_fits(df_fit)
     fig2.savefig(f"arrhenius_fits_{timestamp}.pdf")
+
+    # This version has the DAB and DAB2 as separate fits
+    # fig2 = plot_arrhenius_fits(df)
+    # fig2.savefig(f"arrhenius_fits_{timestamp}.pdf")

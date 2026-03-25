@@ -8,7 +8,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
 #SBATCH --time=10:00:00
-#SBATCH --array=1-27
+#SBATCH --array=1-30
 
 pwd
 echo "Running on host: `hostname`"
@@ -19,7 +19,7 @@ echo "Starting run at: `date`"
 conda activate epoxy
 
 # Define arrays (tcsh syntax)
-set METHODS = (NMR NMR NMR NMR NMR NMR NMR NMR NMR \
+set METHODS = (NMR NMR NMR NMR NMR NMR NMR NMR \
                DSC DSC DSC DSC DSC DSC \
                DSC DSC DSC DSC DSC DSC \
                DSC DSC DSC DSC DSC DSC)

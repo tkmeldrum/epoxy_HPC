@@ -249,7 +249,7 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     samples = chain.transpose(1, 0, 2).reshape(-1, chain.shape[-1])
     # filtered_samples = samples  # ✅ Use this for posterior summary and corner plot
     
-    param_names = ["log_k1", "log_k2", "m", "n", "r", "log_sigma"]
+    param_names = build_param_names(chain.shape[2])
     print(f"\n📊 Per-walker parameter stats (after burnin/stride/removing stuck walkers):")
     for w in range(chain.shape[0]):
         print(f"\n🧍 Walker {w}:")
@@ -269,8 +269,12 @@ def make_plots(samples, chain, t_data, a_data, r, label, outdir="fit_plots", ove
     filtered_subset = []
 
     for p in subset:
-        log_k1, log_k2, m, n, r, log_sigma = p
-        a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
+        if len(p) == 6:
+            log_k1, log_k2, m, n, r_val, log_sigma = p
+        else:
+            log_k1, log_k2, m, n, log_sigma = p
+            r_val = r  # fixed r from data
+        a_fit = solve_model(log_k1, log_k2, m, n, r_val, t_data, a_data)
         # print(f"▶ solve_model returned: {a_fit}")
         # print(f"▶ isfinite: {np.all(np.isfinite(a_fit))}, any nans? {np.any(np.isnan(a_fit))}")
 

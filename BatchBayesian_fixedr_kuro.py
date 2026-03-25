@@ -39,12 +39,29 @@ def log_debug(msg):
 
 # param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
 param_names = ['log_k1', 'log_k2', 'm', 'n', 'log_sigma']
-samples_list = ['EDA', 'DAP', 'DAB']
+samples_list = ['EDA', 'DAP', 'DAB', 'DAP2']  # DAP2 = 2026 repeat NMR run
 dsc_temps = [25, 33, 50, 60, 80, 100]
 nmr_temps = [25, 33, 40]
 
+# NMR index map: (sample, temp) -> index in epoxy_data.mat NMR struct
+# Indices 0-8: original 2023 runs; 9-11: 2026 DAP repeat
+nmr_index = {
+    ('EDA',  25): 0,
+    ('EDA',  33): 1,
+    ('EDA',  40): 2,
+    ('DAP',  25): 3,
+    ('DAP',  33): 4,
+    ('DAP',  40): 5,
+    ('DAB',  25): 6,
+    ('DAB',  33): 7,
+    ('DAB',  40): 8,
+    ('DAP2', 25): 9,
+    ('DAP2', 33): 10,
+    ('DAP2', 40): 11,
+}
+
 # Data loading
-mat = loadmat('epoxy_data.mat')
+mat = loadmat('epoxy_data_13Mar2026.mat')
 
 try:
     fit_csv = pd.read_csv("fit_results/fixed_r/combined_results.csv", engine='python')
@@ -360,9 +377,10 @@ def process_single(task):
 
 
     dataset_name = 'NMR' if method == 'NMR' else sample
-    index_map = {'NMR': [25, 33, 40], 'DSC': [25, 33, 50, 60, 80, 100]}
-    offset = {'EDA': 0, 'DAP': 3, 'DAB': 6}.get(sample, 0)
-    ii = offset + index_map[method].index(temp) if method == 'NMR' else index_map['DSC'].index(temp)
+    if method == 'NMR':
+        ii = nmr_index[(sample, temp)]
+    else:
+        ii = [25, 33, 50, 60, 80, 100].index(temp)
 
     try:
         t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
@@ -475,7 +493,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run MCMC fit for one or all datasets.")
     parser.add_argument("method", nargs="?", choices=["NMR", "DSC"], help="Measurement method")
-    parser.add_argument("sample", nargs="?", choices=["EDA", "DAP", "DAB"], help="Sample type")
+    parser.add_argument("sample", nargs="?", choices=["EDA", "DAP", "DAB", "DAP2"], help="Sample type")
     parser.add_argument("temp", nargs="?", type=int, help="Temperature in Celsius")
     parser.add_argument("--grid_scan", action="store_true", help="Run posterior grid scan instead of MCMC")
     args = parser.parse_args()
@@ -494,8 +512,7 @@ if __name__ == "__main__":
         # Load data just like in process_single
         dataset_name = sample if method != "NMR" else "NMR"
         if method == "NMR":
-            offset = {"EDA": 0, "DAP": 3, "DAB": 6}[sample]
-            ii = offset + [25, 33, 40].index(temp)
+            ii = nmr_index[(sample, temp)]
         else:
             ii = [25, 33, 50, 60, 80, 100].index(temp)
 
@@ -521,10 +538,12 @@ if __name__ == "__main__":
             results_df.to_csv(f"{output_dir}/fit_{args.method}_{args.sample}_{args.temp}C.csv", index=False)
     else:
         # Run full batch
+        # DAP2 is NMR-only — skip DSC for that sample
         tasks = [(method, sample, temp)
                  for sample in samples_list
                  for method, temps in [('DSC', dsc_temps), ('NMR', nmr_temps)]
-                 for temp in temps]
+                 for temp in temps
+                 if not (sample == 'DAP2' and method == 'DSC')]
 
         all_results = []
         for task in tasks:

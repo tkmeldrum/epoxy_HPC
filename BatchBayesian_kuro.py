@@ -19,15 +19,31 @@ nsteps = 100000
 burnin = int(0.2*nsteps)
 nwalkers = 48
 param_names = ['log_k1', 'log_k2', 'm', 'n', 'r', 'log_sigma']
-samples_list = ['EDA', 'DAP', 'DAB']
+samples_list = ['EDA', 'DAP', 'DAB', 'DAP2']  # DAP2 = 2026 repeat NMR run
 dsc_temps = [25, 33, 50, 60, 80, 100]
 nmr_temps = [25, 33, 40]
 
+# NMR index map: (sample, temp) -> index in epoxy_data.mat NMR struct
+# Indices 0-8: original 2023 runs; 9-11: 2026 DAP repeat
+nmr_index = {
+    ('EDA',  25): 0,
+    ('EDA',  33): 1,
+    ('EDA',  40): 2,
+    ('DAP',  25): 3,
+    ('DAP',  33): 4,
+    ('DAP',  40): 5,
+    ('DAB',  25): 6,
+    ('DAB',  33): 7,
+    ('DAB',  40): 8,
+    ('DAP2', 25): 9,
+    ('DAP2', 33): 10,
+    ('DAP2', 40): 11,
+}
+
 # Data loading
-mat = loadmat('epoxy_data.mat')
+mat = loadmat('epoxy_data_13Mar2026.mat')
 
 try:
-    import pandas as pd
     fit_csv = pd.read_csv("fit_results/combined_results.csv", engine='python')
     fit_csv = fit_csv.copy(deep=True)  # ensure safe read-only behavior
 except Exception as e:
@@ -103,12 +119,10 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
     os.makedirs("fit_plots", exist_ok=True)
     label = f"{method}_{sample}_{temp}C"
 
-    # Corner plot
     fig = corner.corner(samples, labels=["log_k1", "log_k2", "m", "n", "r", "log_sigma"])
     fig.savefig(f"fit_plots/{label}_corner.png")
     plt.close(fig)
 
-    # Prediction samples
     idx = np.random.choice(len(samples), size=min(200, len(samples)), replace=False)
     alpha_preds = np.array([
         solve_model(*samples[i][:-1], t_data, a_data)
@@ -120,16 +134,13 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
     lower_alpha = np.nanpercentile(alpha_preds, 2.5, axis=0)
     upper_alpha = np.nanpercentile(alpha_preds, 97.5, axis=0)
 
-    # Derivatives
     dadt_preds = np.array([gradient(alpha, t_data) for alpha in alpha_preds])
     mean_dadt = np.nanmean(dadt_preds, axis=0)
     lower_dadt = np.nanpercentile(dadt_preds, 2.5, axis=0)
     upper_dadt = np.nanpercentile(dadt_preds, 97.5, axis=0)
 
-    # Combined plot
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # α(t) vs t
     axes[0].plot(t_data, a_data, 'o', label="Data")
     axes[0].plot(t_data, mean_alpha, label="Median Fit")
     axes[0].fill_between(t_data, lower_alpha, upper_alpha, alpha=0.3, label="95% CI")
@@ -138,7 +149,6 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
     axes[0].set_ylabel("α")
     axes[0].legend()
 
-    # dα/dt vs α
     axes[1].plot(mean_alpha, mean_dadt, label="Median")
     axes[1].fill_between(mean_alpha, lower_dadt, upper_dadt, alpha=0.3, label="95% CI")
     axes[1].set_title(f"{label}: dα/dt vs α")
@@ -156,8 +166,7 @@ def process_single(task):
 
     if method == 'NMR':
         dataset_name = 'NMR'
-        offset = {'EDA': 0, 'DAP': 3, 'DAB': 6}[sample]
-        ii = offset + [25, 33, 40].index(temp)
+        ii = nmr_index[(sample, temp)]
     else:
         dataset_name = sample
         ii = [25, 33, 50, 60, 80, 100].index(temp)
@@ -200,7 +209,7 @@ def process_single(task):
                     row["Unc_m"],
                     row["Unc_n"],
                     row["Unc_r"],
-                    0.2  # default sigma unc
+                    0.2
                 ])
             except Exception as e:
                 print(f"[Warning] Missing uncertainty values for {method}_{sample}_{temp}C: {e}")
@@ -213,7 +222,6 @@ def process_single(task):
         start = [-5, -2, 0.5, 1.4, np.max(a_data), -4]
         scale_params = np.array([0.2] * 6)
 
-    # Attempt optimization
     opt = minimize(lambda p: -log_posterior(p, t_data, a_data), start,
                    method='Nelder-Mead', options={'maxiter': 1000})
 
@@ -223,10 +231,8 @@ def process_single(task):
     else:
         init_params = opt.x
 
-    # Run MCMC with either optimized or fallback
     samples, chain, sampler = run_mcmc(init_params, t_data, a_data, scale_params)
 
-    # Save outputs
     label = f"{method}_{sample}_{temp}C"
     os.makedirs("mcmc_samples", exist_ok=True)
 
@@ -240,7 +246,6 @@ def process_single(task):
     with open(f"mcmc_samples/{label}_sampler.pkl", "wb") as f:
         pickle.dump(sampler, f)
 
-    # Summarize
     summary = {}
     for i, name in enumerate(param_names):
         vals = 10**samples[:, i] if "log_" in name else samples[:, i]
@@ -255,7 +260,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run MCMC fit for one or all datasets.")
     parser.add_argument("method", nargs="?", choices=["NMR", "DSC"], help="Measurement method")
-    parser.add_argument("sample", nargs="?", choices=["EDA", "DAP", "DAB"], help="Sample type")
+    parser.add_argument("sample", nargs="?", choices=["EDA", "DAP", "DAB", "DAP2"], help="Sample type")
     parser.add_argument("temp", nargs="?", type=int, help="Temperature in Celsius")
     args = parser.parse_args()
 
@@ -263,17 +268,17 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
 
     if args.method and args.sample and args.temp:
-        # Run one specific dataset
         result = process_single((args.method, args.sample, args.temp))
         if result:
             results_df = pd.DataFrame([result])
             results_df.to_csv(f"{output_dir}/fit_{args.method}_{args.sample}_{args.temp}C.csv", index=False)
     else:
-        # Run full batch
+        # DAP2 is NMR-only — skip DSC for that sample
         tasks = [(method, sample, temp)
                  for sample in samples_list
                  for method, temps in [('DSC', dsc_temps), ('NMR', nmr_temps)]
-                 for temp in temps]
+                 for temp in temps
+                 if not (sample == 'DAP2' and method == 'DSC')]
 
         all_results = []
         for task in tasks:
