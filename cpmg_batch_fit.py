@@ -22,15 +22,13 @@ from datetime import datetime
 from scipy.optimize import curve_fit
 from multiprocessing import Pool
 
-# ── Path to kea_io ────────────────────────────────────────────────────────────
-sys.path.insert(0, r"/mnt/c/Users/Tyler Meldrum/Documents/GitHub/MeldrumLabCode/pythonic")
+# ── Machine-specific paths ────────────────────────────────────────────────────
+import local_config
+sys.path.insert(0, local_config.KEA_PATH)
 from kea_io import prepare_t2_data
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-ZIP_ROOT = Path(
-    r"/mnt/c/Users/Tyler Meldrum/OneDrive - William & Mary"
-    r"/Documents - Meldrumlab/Epoxy kinetics/Data/Raw data"
-)
+ZIP_ROOT = Path(local_config.DATA_ROOT)
 
 # temp -> {sample_name -> WM number (zero-padded to 2 digits)}
 EXPERIMENTS = {
@@ -39,7 +37,7 @@ EXPERIMENTS = {
     "40C": {"EDA": "WM58", "DAP": "WM54", "DAB": "WM53"},
 }
 
-N_WORKERS = 6  # physical cores
+N_WORKERS = local_config.N_WORKERS
 
 # DAP2: separate zip with a different internal folder structure
 DAP2_ZIP = ZIP_ROOT / "DAP2.zip"
@@ -92,6 +90,14 @@ def _read_params_from_bytes(raw_bytes: bytes) -> dict:
     return params
 
 
+def _autophase(d):
+    """Rotate complex array so real sum is maximised and imag sum ≈ 0."""
+    if not np.iscomplexobj(d):
+        return d
+    theta = -np.angle(d.sum())
+    return d * np.exp(1j * theta)
+
+
 def _prepare_t2_from_bytes(data_bytes: bytes, params: dict):
     """
     Wrap prepare_t2_data to work on in-memory bytes rather than a file path.
@@ -133,24 +139,13 @@ def _prepare_t2_from_bytes(data_bytes: bytes, params: dict):
 
     echo_time = float(params["echoTime"])  # µs
 
-    def _autophase(d):
-        if not np.iscomplexobj(d):
-            return d
-        theta = -np.angle(d.sum())
-        return d * np.exp(1j * theta)
-
     if y_dim > 1:
         timedata = data[: x_dim * y_dim].reshape((x_dim, y_dim), order="F")
-        if np.iscomplexobj(timedata):
-            intdata = np.abs(timedata).sum(axis=0)
-        else:
-            intdata = timedata.sum(axis=0)
+        echo_vec_cpx = timedata.sum(axis=0)          # coherent sum → one complex value per echo
+        intdata = np.real(_autophase(echo_vec_cpx))
         nr_echoes = y_dim
     else:
-        if np.iscomplexobj(data):
-            intdata = np.abs(data)
-        else:
-            intdata = np.asarray(data, dtype=float)
+        intdata = np.real(_autophase(data)) if np.iscomplexobj(data) else np.asarray(data, dtype=float)
         nr_echoes = x_dim
 
     echo_vec = 1e-6 * echo_time * np.arange(1, nr_echoes + 1)
@@ -230,20 +225,21 @@ def list_scans_direct(zf: zipfile.ZipFile, prefix: str) -> list[dict]:
 
 # ── Stretched exponential fit ─────────────────────────────────────────────────
 
-def stretched_exp(t, A, T2, beta, c):
-    return A * np.exp(-(t / T2) ** beta) + c
+# include y-offset
+# def stretched_exp(t, A, T2, beta, c):
+#     return A * np.exp(-(t / T2) ** beta) + c
+
+# omit y-offset
+def stretched_exp(t, A, T2, beta):
+    return A * np.exp(-(t / T2) ** beta)
 
 
-def fit_scan(scan: dict, zf: zipfile.ZipFile,
-             prev: dict | None = None,
-             A_first: float | None = None) -> dict | None:
+def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
     """
     Fit one scan to A * exp(-(t/T2)^beta).
 
-    A is always initialised from the data (max of signal).
-    T2 and beta are warm-started from prev if available.
-    All scans are returned; dropped=True marks poor fits (T2 rel. unc. > 200%).
-    Dropped scans are excluded from warm-starting the next fit.
+    Initial guesses are derived from the data; no warm-starting.
+    dropped=True marks poor fits (T2 rel. unc. > 200%).
     """
     idx = scan["index"]
     try:
@@ -255,30 +251,25 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile,
         ts     = datetime(*scan["data_info"].date_time)
 
         A0 = float(np.max(y)) if np.max(y) > 0 else 1.0
-        # c0: estimate noise floor from last 10% of echoes
-        c0 = float(np.mean(y[int(0.9 * len(y)):]))
 
-        bounds = ([0, 1e-6, 0.1, 0], [np.inf, np.inf, np.inf, np.inf])
+        # T2 guess: first time where signal drops to half-max
+        half_max_idx = np.searchsorted(-y, -A0 / 2)
+        T2_0 = float(t[min(half_max_idx, len(t) - 1)])
 
-        # A always from data; T2/beta/c warm-started from prev if available
-        T2_0   = prev["T2"]   if prev is not None else t[len(t) // 2]
-        beta_0 = prev["beta"] if prev is not None else 0.8
-        c_0    = prev["c"]    if prev is not None else max(c0, 0.0)
-        p0     = [A0, T2_0, beta_0, c_0]
+        p0     = [A0, T2_0, 1.0]
+        bounds = ([0, 0, 0], [np.inf, np.inf, 5])
 
-        try:
-            popt, pcov = curve_fit(stretched_exp, t, y, p0=p0,
-                                   bounds=bounds, maxfev=5000)
-        except RuntimeError:
-            # Warm start failed — retry with data-derived guesses
-            popt, pcov = curve_fit(stretched_exp, t, y,
-                                   p0=[A0, t[len(t) // 2], 0.8, max(c0, 0.0)],
-                                   bounds=bounds, maxfev=5000)
+        popt, pcov = curve_fit(stretched_exp, t, y, p0=p0,
+                               bounds=bounds, maxfev=5000)
 
         perr = np.sqrt(np.diag(pcov))
-        dropped = bool(popt[1] > 0 and perr[1] / popt[1] > 2.0)
-        if dropped:
+        drop_unc  = popt[1] > 0 and perr[1] / popt[1] > 2.0
+        drop_beta = popt[2] > 2.0
+        dropped = bool(drop_unc or drop_beta)
+        if drop_unc:
             print(f"  [DROP] scan {idx}: T2 rel. unc. = {perr[1]/popt[1]:.2f}")
+        if drop_beta:
+            print(f"  [DROP] scan {idx}: beta = {popt[2]:.2f} > 2")
 
         return {
             "scan":      idx,
@@ -286,7 +277,7 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile,
             "A":         popt[0], "A_err":    perr[0],
             "T2":        popt[1], "T2_err":   perr[1],
             "beta":      popt[2], "beta_err": perr[2],
-            "c":         popt[3], "c_err":    perr[3],
+            # "c":         popt[3], "c_err":    perr[3],
             "dropped":   dropped,
             "_t": t, "_y": y,
         }
@@ -299,8 +290,7 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile,
 
 def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str,
                    direct_prefix: str | None = None) -> pd.DataFrame:
-    """Load all scans for one sample from a zip and fit them sequentially,
-    warm-starting each fit from the previous successful result.
+    """Load all scans for one sample from a zip and fit them independently.
     If direct_prefix is given, uses list_scans_direct instead of list_scans."""
     print(f"Processing {sample} ({wm_id}) at {temp}...")
     with zipfile.ZipFile(zip_path) as zf:
@@ -311,16 +301,10 @@ def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str,
         print(f"  Found {len(scans)} scans.")
 
         results = []
-        prev    = None
-        A_first = None
         for scan in scans:
-            result = fit_scan(scan, zf, prev=prev, A_first=A_first)
+            result = fit_scan(scan, zf)
             if result is not None:
-                if A_first is None:
-                    A_first = result["A"]
                 results.append(result)
-                if not result["dropped"]:
-                    prev = result
 
     results = [r for r in results if r is not None]
     for r in results:
@@ -456,20 +440,37 @@ def plot_sample(df: pd.DataFrame, sample: str, temp: str, out_dir: Path) -> None
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
     fig.suptitle(f"{sample} — {temp}")
 
+    T2_YLIM   = (0, 0.05)
+    BETA_YLIM = (0, 2.1)
+
     ax1.errorbar(good["elapsed_min"], good["T2"],
                  yerr=_cap_err(good["T2"], good["T2_err"]),
                  fmt="o-", capsize=3)
     ax1.scatter(dropped["elapsed_min"], dropped["T2"],
                 color="red", alpha=0.4, zorder=3, s=20)
+    ax1.set_ylim(*T2_YLIM)
     ax1.set_ylabel("T₂ (s)")
+    # asterisks for out-of-range T2 points
+    clipped_t2 = grp[grp["T2"] > T2_YLIM[1]]
+    if not clipped_t2.empty:
+        ax1.scatter(clipped_t2["elapsed_min"],
+                    [T2_YLIM[1] * 0.97] * len(clipped_t2),
+                    marker="*", color="C0", s=60, zorder=5, clip_on=False)
 
     ax2.errorbar(good["elapsed_min"], good["beta"],
                  yerr=_cap_err(good["beta"], good["beta_err"]),
                  fmt="o-", capsize=3, color="C1")
     ax2.scatter(dropped["elapsed_min"], dropped["beta"],
                 color="red", alpha=0.4, zorder=3, s=20)
+    ax2.set_ylim(*BETA_YLIM)
     ax2.set_ylabel("β")
     ax2.set_xlabel("Elapsed time (min)")
+    # asterisks for out-of-range beta points
+    clipped_beta = grp[grp["beta"] > BETA_YLIM[1]]
+    if not clipped_beta.empty:
+        ax2.scatter(clipped_beta["elapsed_min"],
+                    [BETA_YLIM[1] * 0.97] * len(clipped_beta),
+                    marker="*", color="C1", s=60, zorder=5, clip_on=False)
 
     fig.tight_layout()
     fig.savefig(out_dir / f"{sample}_{temp}.png", dpi=150)
@@ -492,15 +493,10 @@ def plot_decays(zip_path: Path, wm_id: str, temp: str, sample: str,
         else:
             scans = list_scans(zf, wm_id)
         results = []
-        prev    = None
-        A_first = None
         for scan in scans:
-            r = fit_scan(scan, zf, prev=prev, A_first=A_first)
+            r = fit_scan(scan, zf)
             if r is not None:
-                if A_first is None:
-                    A_first = r["A"]
                 results.append(r)
-                prev = r
 
     if not results:
         print("  No results.")
@@ -515,7 +511,8 @@ def plot_decays(zip_path: Path, wm_id: str, temp: str, sample: str,
     for i, r in enumerate(results):
         ax = axes[i]
         t, y = r["_t"], r["_y"]
-        y_fit = stretched_exp(t, r["A"], r["T2"], r["beta"], r["c"])
+        # y_fit = stretched_exp(t, r["A"], r["T2"], r["beta"], r["c"])
+        y_fit = stretched_exp(t, r["A"], r["T2"], r["beta"])
 
         color = "red" if r.get("dropped") else "C0"
         ax.plot(t * 1000, y, ".", ms=3, color=color, alpha=0.6)

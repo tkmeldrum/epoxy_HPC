@@ -6,13 +6,19 @@ The `kapp` model (`BatchBayesian_simple.py`) — which uses `kapp * a^m * (1-a)^
 
 ## CPMG NMR analysis (`cpmg_batch_fit.py`)
 
-Loads CPMG relaxation data directly from zipped Kea datasets (no extraction needed) and fits each decay to a stretched exponential with noise offset:
+Loads CPMG relaxation data directly from zipped Kea datasets (no extraction needed) and fits each decay to a stretched exponential:
 
 ```
-M(t) = A * exp(-(t/T2)^beta) + c
+M(t) = A * exp(-(t/T2)^beta)
 ```
 
-Data is read as magnitude (not phased real) to avoid phase errors on weak signals. Parameters A, T2, beta, c are fit per scan using `scipy.optimize.curve_fit`. T2 and beta are warm-started from the previous scan's fit; A is always estimated from `max(y)`; c is estimated from the tail of the decay. Scans with T2 relative uncertainty > 200% are marked as dropped and excluded from downstream analysis but retained in the CSV output.
+**Phasing:** For each scan, all points within each echo are coherently summed to give one complex value per echo. The echo vector is then autophased by rotating by `-angle(sum)` so that the real projection is maximised and the imaginary sum ≈ 0. The real part is used as the decay signal. If the data are real-valued (non-complex), magnitude is used directly.
+
+**Fitting:** Each scan is fit independently using `scipy.optimize.curve_fit` — no warm-starting between scans. Initial guesses: `A = max(y)`, `beta = 1`, `T2` = first time where signal drops to half-max. Bounds: `0 < A, T2 < inf`, `0 < beta < 5`.
+
+**Drop criteria:** A scan is marked `dropped=True` if T2 relative uncertainty > 200% or beta > 2. Dropped scans are excluded from alpha and T2(alpha) analysis but retained in the CSV output. Summary plots clip T2 to [0, 0.05 s] and beta to [0, 2.1]; out-of-range points are marked with an asterisk.
+
+**Machine-specific paths** (zip root, kea_io path, worker count) are set in `local_config.py` — not committed to git. See comments in that file for PC/WSL vs. Mac values.
 
 ### Folder/zip structure
 
