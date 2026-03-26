@@ -29,6 +29,7 @@ from tqdm import tqdm
 
 # Config
 from mcmc_config import burnin, stride, overlay_n, nwalkers, nsteps
+from local_config import N_WORKERS
 
 LOG_FILE = None  # placeholder
 
@@ -298,7 +299,7 @@ def run_mcmc(start_params, t_data, a_data, r, scale_params=None):
     elif n_finite < len(p0):
         print(f"⚠️ Only {n_finite}/{len(p0)} initial positions are finite.")
 
-    with multiprocessing.Pool(processes=nwalkers) as pool:
+    with multiprocessing.Pool(processes=N_WORKERS) as pool:
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, log_posterior, args=(t_data, a_data, r), pool=pool
         )

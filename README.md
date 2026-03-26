@@ -118,3 +118,86 @@ dα/dt   = (k_eff1 + k_eff2·α^m) · (1-α)^(n/2) · (r-α)^(n/2)
 ```
 
 B and a0 are **fixed** per (sample, temp) from the NMR R2(α) fit (`cpmg_fit_results/t2_alpha_fits.csv`). Additional free parameters: ξ (dimensionless diffusion coupling) and log_k0 (reference rate). As ξ→0 the model reduces to Kamal-Malkin. Outputs: `fit_results_nmr/corezzi_results.csv`, with RSS printed alongside KM RSS for direct comparison.
+
+**Graphical output — LS fit (always, `*_corezzi_ls.png`):** 3-panel figure saved to `fit_plots_nmr/`:
+1. α(t) — data points, Corezzi fit, KM overlay (if `km_results.csv` present). Parameter box with kc1, kc2, m, n, ξ, k0 ± Laplace uncertainties and fixed B, a₀.
+2. dα/dt vs α — data (numerical gradient), Corezzi rate curve, KM rate curve.
+3. k_eff(α) on log scale — k_eff1(α) and k_eff2(α) showing diffusion suppression toward zero as α → a₀; bare kc1, kc2 shown as dashed references; a₀ marked with a vertical line.
+
+**Graphical output — MCMC (with `--mcmc`, `*_corezzi_combined.png` + `*_corezzi_corner.png`):** same 3-panel layout with posterior median and 95% CI bands throughout, including CI bands on the k_eff(α) curves. Corner plot saved separately.
+
+---
+
+## Script usage
+
+All scripts should be run from the repo root. Machine-specific paths are set in `local_config.py`.
+
+### `cpmg_batch_fit.py` — CPMG NMR processing
+
+```bash
+python cpmg_batch_fit.py                          # process all samples, all temperatures
+python cpmg_batch_fit.py --diagnose EDA 40C       # plot raw decay diagnostics for one dataset
+```
+
+Outputs to `cpmg_fit_results/`: `all_samples.csv`, per-sample CSVs, summary plots, T2(α) plots, and `t2_alpha_fits.csv`.
+
+---
+
+### `BatchBayesian_nmr_km.py` — Kamal-Malkin fit to NMR α(t)
+
+```bash
+python BatchBayesian_nmr_km.py                    # LS fit, all NMR datasets
+python BatchBayesian_nmr_km.py EDA 25C            # LS fit, one dataset
+python BatchBayesian_nmr_km.py --mcmc             # LS + MCMC, all datasets
+python BatchBayesian_nmr_km.py --mcmc EDA 25C     # LS + MCMC, one dataset
+```
+
+Outputs: `fit_results_nmr/km_results.csv`, per-dataset LS plots in `fit_plots_nmr/`. MCMC chains and plots saved to `mcmc_samples_nmr/` and `fit_plots_nmr/` when `--mcmc` is used.
+
+---
+
+### `BatchBayesian_nmr_corezzi.py` — Corezzi diffusion-corrected fit to NMR α(t)
+
+Requires `cpmg_fit_results/t2_alpha_fits.csv` (from `cpmg_batch_fit.py`) and optionally `fit_results_nmr/km_results.csv` for RSS comparison.
+
+```bash
+python BatchBayesian_nmr_corezzi.py               # LS fit, all datasets
+python BatchBayesian_nmr_corezzi.py EDA 25C       # LS fit, one dataset
+python BatchBayesian_nmr_corezzi.py --mcmc        # LS + MCMC, all datasets
+python BatchBayesian_nmr_corezzi.py --mcmc EDA 25C
+```
+
+Outputs: `fit_results_nmr/corezzi_results.csv`. Datasets missing from `t2_alpha_fits.csv` are skipped automatically.
+
+---
+
+### `BatchBayesian_fixedr_kuro.py` — Full MCMC for DSC and NMR (fixed r, from `.mat`)
+
+The primary kinetic fitting script for the existing dataset. r is fixed at max(α) per dataset (not stoichiometric).
+
+```bash
+python BatchBayesian_fixedr_kuro.py               # MCMC, all DSC + NMR datasets
+python BatchBayesian_fixedr_kuro.py NMR EDA 25    # MCMC, one dataset (temp as integer)
+python BatchBayesian_fixedr_kuro.py NMR EDA 25 --grid_scan   # posterior grid scan first
+```
+
+Outputs: `mcmc_samples/`, `fit_results/fixed_r/`.
+
+---
+
+### `BatchBayesian_plots.py` — Plot MCMC chains from saved `.npz` files
+
+```bash
+python BatchBayesian_plots.py                          # process all files in mcmc_samples/
+python BatchBayesian_plots.py mcmc_samples/NMR_EDA_25C_fitdata.npz   # one file
+python BatchBayesian_plots.py --burnin 5000 --stride 5               # override mcmc_config
+```
+
+---
+
+### `MCMC_diagnostics.py` — Chain diagnostics (autocorrelation, acceptance, Gelman-Rubin)
+
+```bash
+python MCMC_diagnostics.py                             # all files in mcmc_samples/
+python MCMC_diagnostics.py mcmc_samples/NMR_EDA_25C_fitdata.npz      # one file
+```

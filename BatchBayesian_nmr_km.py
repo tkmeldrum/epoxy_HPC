@@ -29,6 +29,7 @@ import emcee
 import corner
 
 from mcmc_config import burnin, nwalkers, nsteps, overlay_n
+from local_config import N_WORKERS
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 R = 2.0          # stoichiometric ratio, fixed for all samples
@@ -117,7 +118,7 @@ def run_mcmc(start_params, t_data, a_data, scale_params=None):
     if n_finite < nwalkers:
         print(f"  Warning: only {n_finite}/{nwalkers} initial positions are finite.")
 
-    with multiprocessing.Pool(processes=nwalkers) as pool:
+    with multiprocessing.Pool(processes=N_WORKERS) as pool:
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, log_posterior, args=(t_data, a_data), pool=pool
         )

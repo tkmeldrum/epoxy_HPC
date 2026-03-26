@@ -10,3 +10,8 @@
 KEA_PATH  = "/Users/tyler/Documents/GitHub/MeldrumLabCode/pythonic"
 DATA_ROOT = "/Users/tyler/Library/CloudStorage/OneDrive-William&Mary/Documents - Meldrumlab/Epoxy kinetics/Data/Raw data"
 N_WORKERS = 8
+
+# ── HPC [bora] ─────────────────────────────────────────────────────────────────
+# KEA_PATH  = "/Users/tyler/Documents/GitHub/MeldrumLabCode/pythonic"
+# DATA_ROOT = "/Users/tyler/Library/CloudStorage/OneDrive-William&Mary/Documents - Meldrumlab/Epoxy kinetics/Data/Raw data"
+# N_WORKERS = 20

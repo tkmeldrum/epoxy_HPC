@@ -34,6 +34,7 @@ import emcee
 import corner
 
 from mcmc_config import burnin, nwalkers, nsteps, overlay_n
+from local_config import N_WORKERS
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 R           = 2.0          # stoichiometric ratio, fixed for all samples
@@ -143,7 +144,7 @@ def run_mcmc(start_params, t_data, a_data, B, a0, scale_params=None):
     if n_finite < nwalkers:
         print(f"  Warning: only {n_finite}/{nwalkers} initial positions are finite.")
 
-    with multiprocessing.Pool(processes=nwalkers) as pool:
+    with multiprocessing.Pool(processes=N_WORKERS) as pool:
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, log_posterior,
             args=(t_data, a_data, B, a0), pool=pool
@@ -156,40 +157,241 @@ def run_mcmc(start_params, t_data, a_data, B, a0, scale_params=None):
     return samples, chain, sampler
 
 
-# ── Plotting ───────────────────────────────────────────────────────────────────
+# ── Laplace uncertainty estimation ────────────────────────────────────────────
+def _numerical_hessian(f, x, h=1e-4):
+    """Central finite-difference Hessian of scalar f at x."""
+    n  = len(x)
+    H  = np.zeros((n, n))
+    f0 = f(x)
+    for i in range(n):
+        for j in range(i, n):
+            if i == j:
+                xp, xm = x.copy(), x.copy()
+                xp[i] += h; xm[i] -= h
+                H[i, i] = (f(xp) - 2 * f0 + f(xm)) / h**2
+            else:
+                xpp, xpm = x.copy(), x.copy()
+                xmp, xmm = x.copy(), x.copy()
+                xpp[i] += h; xpp[j] += h
+                xpm[i] += h; xpm[j] -= h
+                xmp[i] -= h; xmp[j] += h
+                xmm[i] -= h; xmm[j] -= h
+                H[i, j] = (f(xpp) - f(xpm) - f(xmp) + f(xmm)) / (4 * h**2)
+                H[j, i] = H[i, j]
+    return H
+
+
+def ls_uncertainties(params, t_data, a_data, B, a0):
+    """Laplace-approximation uncertainties from -log_posterior curvature."""
+    try:
+        H   = _numerical_hessian(lambda p: -log_posterior(p, t_data, a_data, B, a0), params)
+        cov = np.linalg.inv(H)
+        if np.any(np.diag(cov) < 0):
+            return None
+        log_kc1, log_kc2, _, _, _, log_k0, _ = params
+        s = np.sqrt(np.diag(cov))
+        return {
+            "kc1_err": 10**log_kc1 * np.log(10) * s[0],
+            "kc2_err": 10**log_kc2 * np.log(10) * s[1],
+            "m_err":   s[2],
+            "n_err":   s[3],
+            "xi_err":  s[4],
+            "k0_err":  10**log_k0  * np.log(10) * s[5],
+        }
+    except Exception:
+        return None
+
+
+# ── KM overlay helpers (inlined to avoid cross-import) ────────────────────────
+def _km_ode_rhs(t, a, log_k1, log_k2, m, n, eps=1e-10):
+    k1 = 10**log_k1; k2 = 10**log_k2
+    a  = np.clip(a, eps, 1 - eps)
+    return (k1 + k2 * a**m) * (1 - a)**(n / 2) * (R - a)**(n / 2)
+
+
+def _load_km_params(sample, temp):
+    """Return (log_k1, log_k2, m, n) from km_results.csv, or None."""
+    if not os.path.exists(KM_CSV):
+        return None
+    km  = pd.read_csv(KM_CSV)
+    row = km[(km["sample"] == sample) & (km["temp"] == temp)]
+    if row.empty:
+        return None
+    r = row.iloc[0]
+    return np.log10(r["k1"]), np.log10(r["k2"]), r["m"], r["n"]
+
+
+def _km_solve(log_k1, log_k2, m, n, t_data, a_data, eps=1e-10):
+    try:
+        a0  = np.clip(a_data[0], eps, 1 - eps)
+        sol = solve_ivp(_km_ode_rhs, [t_data[0], t_data[-1]], [a0], t_eval=t_data,
+                        args=(log_k1, log_k2, m, n), method="LSODA", rtol=1e-8, atol=1e-10)
+        if not sol.success or not np.all(np.isfinite(sol.y)):
+            return None
+        return sol.y[0]
+    except Exception:
+        return None
+
+
+# ── k_eff curve ────────────────────────────────────────────────────────────────
+def _keff_curve(log_kc1, log_kc2, xi, log_k0, B, a0, n_pts=300):
+    """Return (alpha_arr, keff1_arr, keff2_arr) from 0 to 0.95*a0."""
+    alpha = np.linspace(1e-6, 0.95 * a0, n_pts)
+    kc1   = 10**log_kc1; kc2 = 10**log_kc2; k0 = 10**log_k0
+    mob   = np.exp(xi * B * alpha / (a0 - alpha))
+    keff1 = kc1 / (1 + (kc1 / k0) * mob)
+    keff2 = kc2 / (1 + (kc2 / k0) * mob)
+    return alpha, keff1, keff2
+
+
+# ── LS fit plot (always runs) ──────────────────────────────────────────────────
+def plot_ls_fit(params, t_data, a_data, sample, temp, B, a0):
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    label = f"NMR_{sample}_{temp}_corezzi"
+    log_kc1, log_kc2, m, n, xi, log_k0, _ = params
+    kc1, kc2, k0 = 10**log_kc1, 10**log_kc2, 10**log_k0
+
+    a_fit    = solve_model(*params[:-1], t_data, a_data, B, a0)
+    errs     = ls_uncertainties(params, t_data, a_data, B, a0)
+    km_p     = _load_km_params(sample, temp)
+    km_alpha = _km_solve(*km_p, t_data, a_data) if km_p is not None else None
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+    # ── Panel 1: α(t) ──────────────────────────────────────────────────────────
+    ax = axes[0]
+    ax.plot(t_data, a_data, "o", ms=4, label="Data")
+    if np.all(np.isfinite(a_fit)):
+        ax.plot(t_data, a_fit, "-", label="Corezzi")
+    if km_alpha is not None:
+        ax.plot(t_data, km_alpha, "--", color="gray", lw=1.5, label="KM")
+    ax.set(title=f"{sample} {temp} — α(t)", xlabel="Time (s)", ylabel="α")
+    ax.legend(fontsize=8)
+
+    def _fe(v, e):   # format value ± error (exponential)
+        return f"{v:.2e} ± {e:.1e}" if e is not None else f"{v:.2e}"
+    def _ff(v, e):   # format value ± error (fixed)
+        return f"{v:.3f} ± {e:.3f}" if e is not None else f"{v:.3f}"
+
+    if errs:
+        txt = (f"$k_{{c1}}$ = {_fe(kc1, errs['kc1_err'])}\n"
+               f"$k_{{c2}}$ = {_fe(kc2, errs['kc2_err'])}\n"
+               f"$m$  = {_ff(m,   errs['m_err'])}\n"
+               f"$n$  = {_ff(n,   errs['n_err'])}\n"
+               f"$\\xi$ = {_ff(xi, errs['xi_err'])}\n"
+               f"$k_0$ = {_fe(k0, errs['k0_err'])}\n"
+               f"$B$ (fixed) = {B:.4f}\n"
+               f"$a_0$ (fixed) = {a0:.4f}")
+    else:
+        txt = (f"$k_{{c1}}$ = {kc1:.2e}\n$k_{{c2}}$ = {kc2:.2e}\n"
+               f"$m$ = {m:.3f}\n$n$ = {n:.3f}\n$\\xi$ = {xi:.3f}\n"
+               f"$k_0$ = {k0:.2e}\n$B$ (fixed) = {B:.4f}\n$a_0$ (fixed) = {a0:.4f}")
+    ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", ha="left",
+            fontsize=7.5, bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.85))
+
+    # ── Panel 2: dα/dt vs α ───────────────────────────────────────────────────
+    ax = axes[1]
+    if len(a_data) > 2:
+        dadt_data = gradient(a_data, t_data)
+        ax.plot(a_data, dadt_data, "o", ms=4, label="Data (numerical)")
+    a_grid = np.linspace(1e-4, min(0.99, a0 - 1e-4), 300)
+    rate_c = np.array([ode_rhs_corezzi(0, ai, *params[:-1], B, a0) for ai in a_grid])
+    ax.plot(a_grid, rate_c, "-", label="Corezzi")
+    if km_p is not None:
+        rate_km = np.array([_km_ode_rhs(0, ai, *km_p) for ai in a_grid])
+        ax.plot(a_grid, rate_km, "--", color="gray", lw=1.5, label="KM")
+    ax.set(title=f"{sample} {temp} — dα/dt vs α", xlabel="α", ylabel="dα/dt (s⁻¹)")
+    ax.legend(fontsize=8)
+
+    # ── Panel 3: k_eff(α) ─────────────────────────────────────────────────────
+    ax = axes[2]
+    al, ke1, ke2 = _keff_curve(log_kc1, log_kc2, xi, log_k0, B, a0)
+    ax.plot(al, ke1, label="$k_{eff,1}$")
+    ax.plot(al, ke2, label="$k_{eff,2}$")
+    ax.axhline(kc1, ls="--", color="C0", alpha=0.5, label=f"$k_{{c1}}$ = {kc1:.2e}")
+    ax.axhline(kc2, ls="--", color="C1", alpha=0.5, label=f"$k_{{c2}}$ = {kc2:.2e}")
+    ax.axvline(a0,  ls=":",  color="k",  alpha=0.5, label=f"$a_0$ = {a0:.3f}")
+    ax.set_yscale("log")
+    ax.set(title=f"{sample} {temp} — $k_{{eff}}$(α)", xlabel="α", ylabel="$k_{eff}$ (s⁻¹)")
+    ax.legend(fontsize=8)
+
+    fig.suptitle(f"Corezzi LS — {sample} {temp}  (r={R}, B={B:.4f}, a₀={a0:.4f})", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(f"{PLOT_DIR}/{label}_ls.png", dpi=150)
+    plt.close(fig)
+
+
+# ── MCMC combined plot (4 panels) ─────────────────────────────────────────────
 def plot_results(samples, t_data, a_data, sample, temp, B, a0):
     os.makedirs(PLOT_DIR, exist_ok=True)
     label = f"NMR_{sample}_{temp}_corezzi"
 
+    # Corner plot (separate file)
     fig = corner.corner(samples, labels=PARAM_NAMES)
     fig.savefig(f"{PLOT_DIR}/{label}_corner.png")
     plt.close(fig)
 
+    # Posterior α(t) predictions
     idx         = np.random.choice(len(samples), size=min(overlay_n, len(samples)), replace=False)
-    alpha_preds = np.array([
-        solve_model(*samples[i][:-1], t_data, a_data, B, a0) for i in idx
-    ])
+    alpha_preds = np.array([solve_model(*samples[i][:-1], t_data, a_data, B, a0) for i in idx])
     alpha_preds = alpha_preds[np.all(np.isfinite(alpha_preds), axis=1)]
     mean_alpha  = np.nanmean(alpha_preds, axis=0)
-    lower_alpha = np.nanpercentile(alpha_preds, 2.5,  axis=0)
-    upper_alpha = np.nanpercentile(alpha_preds, 97.5, axis=0)
+    lo_alpha    = np.nanpercentile(alpha_preds, 2.5,  axis=0)
+    hi_alpha    = np.nanpercentile(alpha_preds, 97.5, axis=0)
 
     dadt_preds = np.array([gradient(a, t_data) for a in alpha_preds])
     mean_dadt  = np.nanmean(dadt_preds, axis=0)
-    lower_dadt = np.nanpercentile(dadt_preds, 2.5,  axis=0)
-    upper_dadt = np.nanpercentile(dadt_preds, 97.5, axis=0)
+    lo_dadt    = np.nanpercentile(dadt_preds, 2.5,  axis=0)
+    hi_dadt    = np.nanpercentile(dadt_preds, 97.5, axis=0)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    axes[0].plot(t_data, a_data, "o", label="Data")
-    axes[0].plot(t_data, mean_alpha, label="Median fit")
-    axes[0].fill_between(t_data, lower_alpha, upper_alpha, alpha=0.3, label="95% CI")
-    axes[0].set(title=f"{label}: α(t)", xlabel="Time (s)", ylabel="α")
-    axes[0].legend()
+    # Posterior k_eff(α) bands
+    a_grid   = np.linspace(1e-6, 0.95 * a0, 300)
+    keff_all = np.array([
+        _keff_curve(s[0], s[1], s[4], s[5], B, a0)[1:] for s in samples[idx]
+    ])  # shape (n_samples, 2, n_pts): keff_all[:, 0] = ke1, keff_all[:, 1] = ke2
+    ke1_med = np.nanmedian(keff_all[:, 0], axis=0)
+    ke1_lo  = np.nanpercentile(keff_all[:, 0], 2.5,  axis=0)
+    ke1_hi  = np.nanpercentile(keff_all[:, 0], 97.5, axis=0)
+    ke2_med = np.nanmedian(keff_all[:, 1], axis=0)
+    ke2_lo  = np.nanpercentile(keff_all[:, 1], 2.5,  axis=0)
+    ke2_hi  = np.nanpercentile(keff_all[:, 1], 97.5, axis=0)
+    kc1_med = np.median(10**samples[:, 0])
+    kc2_med = np.median(10**samples[:, 1])
 
-    axes[1].plot(mean_alpha, mean_dadt, label="Median")
-    axes[1].fill_between(mean_alpha, lower_dadt, upper_dadt, alpha=0.3, label="95% CI")
-    axes[1].set(title=f"{label}: dα/dt vs α", xlabel="α", ylabel="dα/dt")
-    axes[1].legend()
+    km_p     = _load_km_params(sample, temp)
+    km_alpha = _km_solve(*km_p, t_data, a_data) if km_p is not None else None
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+    # Panel 1: α(t)
+    ax = axes[0]
+    ax.plot(t_data, a_data, "o", ms=4, label="Data")
+    ax.plot(t_data, mean_alpha, label="Median")
+    ax.fill_between(t_data, lo_alpha, hi_alpha, alpha=0.3, label="95% CI")
+    if km_alpha is not None:
+        ax.plot(t_data, km_alpha, "--", color="gray", lw=1.5, label="KM")
+    ax.set(title=f"{label}: α(t)", xlabel="Time (s)", ylabel="α")
+    ax.legend(fontsize=8)
+
+    # Panel 2: dα/dt vs α
+    ax = axes[1]
+    ax.plot(mean_alpha, mean_dadt, label="Median")
+    ax.fill_between(mean_alpha, lo_dadt, hi_dadt, alpha=0.3, label="95% CI")
+    ax.set(title=f"{label}: dα/dt vs α", xlabel="α", ylabel="dα/dt (s⁻¹)")
+    ax.legend(fontsize=8)
+
+    # Panel 3: k_eff(α) with posterior bands
+    ax = axes[2]
+    ax.plot(a_grid, ke1_med, color="C0", label="$k_{eff,1}$ median")
+    ax.fill_between(a_grid, ke1_lo, ke1_hi, color="C0", alpha=0.3, label="95% CI")
+    ax.plot(a_grid, ke2_med, color="C1", label="$k_{eff,2}$ median")
+    ax.fill_between(a_grid, ke2_lo, ke2_hi, color="C1", alpha=0.3)
+    ax.axhline(kc1_med, ls="--", color="C0", alpha=0.5, label=f"$k_{{c1}}$ = {kc1_med:.2e}")
+    ax.axhline(kc2_med, ls="--", color="C1", alpha=0.5, label=f"$k_{{c2}}$ = {kc2_med:.2e}")
+    ax.axvline(a0, ls=":", color="k", alpha=0.5, label=f"$a_0$ = {a0:.3f}")
+    ax.set_yscale("log")
+    ax.set(title=f"{label}: $k_{{eff}}$(α)", xlabel="α", ylabel="$k_{eff}$ (s⁻¹)")
+    ax.legend(fontsize=8)
 
     fig.tight_layout()
     fig.savefig(f"{PLOT_DIR}/{label}_combined.png")
@@ -258,6 +460,8 @@ def process_single(sample, temp, do_mcmc=False, km_rss=None):
         "B_fixed": B, "a0_fixed": a0,
         "rss": rss, "converged": converged,
     }
+
+    plot_ls_fit(params, t_data, a_data, sample, temp, B, a0)
 
     if not do_mcmc:
         return row
