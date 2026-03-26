@@ -41,6 +41,14 @@ EXPERIMENTS = {
 
 N_WORKERS = 6  # physical cores
 
+# DAP2: separate zip with a different internal folder structure
+DAP2_ZIP = ZIP_ROOT / "DAP2.zip"
+DAP2_EXPERIMENTS = {
+    "25C": "Epoxy2026/13DAP/CPMG_25C",
+    "33C": "Epoxy2026/13DAP/CPMG_33C",
+    "40C": "Epoxy2026/13DAP/CPMG_40C_2",
+}
+
 
 # ── Zip-aware Kea readers ─────────────────────────────────────────────────────
 
@@ -134,15 +142,13 @@ def _prepare_t2_from_bytes(data_bytes: bytes, params: dict):
     if y_dim > 1:
         timedata = data[: x_dim * y_dim].reshape((x_dim, y_dim), order="F")
         if np.iscomplexobj(timedata):
-            timedata = _autophase(timedata)
-            intdata  = np.real(timedata).sum(axis=0)
+            intdata = np.abs(timedata).sum(axis=0)
         else:
-            intdata  = timedata.sum(axis=0)
+            intdata = timedata.sum(axis=0)
         nr_echoes = y_dim
     else:
         if np.iscomplexobj(data):
-            data    = _autophase(data)
-            intdata = np.real(data)
+            intdata = np.abs(data)
         else:
             intdata = np.asarray(data, dtype=float)
         nr_echoes = x_dim
@@ -188,32 +194,91 @@ def list_scans(zf: zipfile.ZipFile, wm_id: str) -> list[dict]:
     return complete
 
 
+def list_scans_direct(zf: zipfile.ZipFile, prefix: str) -> list[dict]:
+    """
+    Find numbered scan folders under an arbitrary prefix inside a ZipFile.
+    Used for DAP2 whose structure is Epoxy2026/13DAP/CPMG_XXC/<n>/data.2d
+    """
+    prefix = prefix.rstrip("/") + "/"
+    scans = {}
+
+    for info in zf.infolist():
+        name = info.filename.replace("\\", "/")
+        if not name.startswith(prefix):
+            continue
+        remainder = name[len(prefix):]
+        parts = remainder.split("/")
+        if len(parts) < 2:
+            continue
+        try:
+            idx = int(parts[0])
+        except ValueError:
+            continue
+
+        fname = parts[1]
+        if idx not in scans:
+            scans[idx] = {"index": idx, "data_info": None, "par_info": None}
+        if fname == "data.2d":
+            scans[idx]["data_info"] = info
+        elif fname == "acqu.par":
+            scans[idx]["par_info"] = info
+
+    complete = [s for s in scans.values() if s["data_info"] and s["par_info"]]
+    complete.sort(key=lambda s: s["index"])
+    return complete
+
+
 # ── Stretched exponential fit ─────────────────────────────────────────────────
 
-def stretched_exp(t, A, T2, beta):
-    return A * np.exp(-(t / T2) ** beta)
+def stretched_exp(t, A, T2, beta, c):
+    return A * np.exp(-(t / T2) ** beta) + c
 
 
-def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
-    """Fit one scan. Returns result dict or None on failure."""
+def fit_scan(scan: dict, zf: zipfile.ZipFile,
+             prev: dict | None = None,
+             A_first: float | None = None) -> dict | None:
+    """
+    Fit one scan to A * exp(-(t/T2)^beta).
+
+    A is always initialised from the data (max of signal).
+    T2 and beta are warm-started from prev if available.
+    All scans are returned; dropped=True marks poor fits (T2 rel. unc. > 200%).
+    Dropped scans are excluded from warm-starting the next fit.
+    """
     idx = scan["index"]
     try:
         par_bytes  = zf.read(scan["par_info"].filename)
         data_bytes = zf.read(scan["data_info"].filename)
 
-        params   = _read_params_from_bytes(par_bytes)
-        t, y     = _prepare_t2_from_bytes(data_bytes, params)
+        params = _read_params_from_bytes(par_bytes)
+        t, y   = _prepare_t2_from_bytes(data_bytes, params)
+        ts     = datetime(*scan["data_info"].date_time)
 
-        # Timestamp from data.2d ZipInfo
-        ts = datetime(*scan["data_info"].date_time)
+        A0 = float(np.max(y)) if np.max(y) > 0 else 1.0
+        # c0: estimate noise floor from last 10% of echoes
+        c0 = float(np.mean(y[int(0.9 * len(y)):]))
 
-        A0   = float(y[0]) if y[0] > 0 else float(np.max(y))
-        T2_0 = t[len(t) // 2]
-        p0     = [A0,    T2_0, 0.8]
-        bounds = ([0, 1e-6, 0.1], [np.inf, np.inf, 1.0])
+        bounds = ([0, 1e-6, 0.1, 0], [np.inf, np.inf, np.inf, np.inf])
 
-        popt, pcov = curve_fit(stretched_exp, t, y, p0=p0, bounds=bounds, maxfev=5000)
+        # A always from data; T2/beta/c warm-started from prev if available
+        T2_0   = prev["T2"]   if prev is not None else t[len(t) // 2]
+        beta_0 = prev["beta"] if prev is not None else 0.8
+        c_0    = prev["c"]    if prev is not None else max(c0, 0.0)
+        p0     = [A0, T2_0, beta_0, c_0]
+
+        try:
+            popt, pcov = curve_fit(stretched_exp, t, y, p0=p0,
+                                   bounds=bounds, maxfev=5000)
+        except RuntimeError:
+            # Warm start failed — retry with data-derived guesses
+            popt, pcov = curve_fit(stretched_exp, t, y,
+                                   p0=[A0, t[len(t) // 2], 0.8, max(c0, 0.0)],
+                                   bounds=bounds, maxfev=5000)
+
         perr = np.sqrt(np.diag(pcov))
+        dropped = bool(popt[1] > 0 and perr[1] / popt[1] > 2.0)
+        if dropped:
+            print(f"  [DROP] scan {idx}: T2 rel. unc. = {perr[1]/popt[1]:.2f}")
 
         return {
             "scan":      idx,
@@ -221,6 +286,9 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
             "A":         popt[0], "A_err":    perr[0],
             "T2":        popt[1], "T2_err":   perr[1],
             "beta":      popt[2], "beta_err": perr[2],
+            "c":         popt[3], "c_err":    perr[3],
+            "dropped":   dropped,
+            "_t": t, "_y": y,
         }
     except Exception as e:
         print(f"  [WARN] scan {idx}: {e}")
@@ -229,16 +297,37 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
 
 # ── Per-sample batch runner ───────────────────────────────────────────────────
 
-def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str) -> pd.DataFrame:
-    """Load all scans for one sample from a zip and fit them."""
+def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str,
+                   direct_prefix: str | None = None) -> pd.DataFrame:
+    """Load all scans for one sample from a zip and fit them sequentially,
+    warm-starting each fit from the previous successful result.
+    If direct_prefix is given, uses list_scans_direct instead of list_scans."""
     print(f"Processing {sample} ({wm_id}) at {temp}...")
     with zipfile.ZipFile(zip_path) as zf:
-        scans = list_scans(zf, wm_id)
+        if direct_prefix is not None:
+            scans = list_scans_direct(zf, direct_prefix)
+        else:
+            scans = list_scans(zf, wm_id)
         print(f"  Found {len(scans)} scans.")
-        results = [fit_scan(s, zf) for s in scans]
+
+        results = []
+        prev    = None
+        A_first = None
+        for scan in scans:
+            result = fit_scan(scan, zf, prev=prev, A_first=A_first)
+            if result is not None:
+                if A_first is None:
+                    A_first = result["A"]
+                results.append(result)
+                if not result["dropped"]:
+                    prev = result
 
     results = [r for r in results if r is not None]
+    for r in results:
+        r.pop("_t", None)
+        r.pop("_y", None)
     df = pd.DataFrame(results)
+    # keep dropped column for plotting; strip before CSV save
     df.insert(0, "sample", sample)
     df.insert(1, "temp",   temp)
 
@@ -261,6 +350,8 @@ def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str) -> pd.Dat
 
 def run_all() -> pd.DataFrame:
     all_dfs = []
+
+    # Standard samples (EDA, DAP, DAB)
     for temp, samples in EXPERIMENTS.items():
         zip_path = ZIP_ROOT / f"{temp}.zip"
         if not zip_path.exists():
@@ -270,26 +361,113 @@ def run_all() -> pd.DataFrame:
             df = process_sample(zip_path, wm_id, temp, sample)
             all_dfs.append(df)
 
+    # DAP2
+    if not DAP2_ZIP.exists():
+        print(f"[SKIP] {DAP2_ZIP} not found.")
+    else:
+        for temp, prefix in DAP2_EXPERIMENTS.items():
+            df = process_sample(DAP2_ZIP, "DAP2", temp, "DAP2",
+                                direct_prefix=prefix)
+            all_dfs.append(df)
+
     return pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+
+
+# ── Alpha and T2(alpha) model ─────────────────────────────────────────────────
+
+def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add alpha = 1 - T2 / T2_initial to each sample group.
+    Uses the first non-dropped scan's T2 as T2_initial.
+    Only operates on good (non-dropped) fits.
+    """
+    df = df.copy()
+    df["alpha"] = np.nan
+    for (sample, temp), grp in df.groupby(["sample", "temp"]):
+        good = grp[~grp["dropped"]] if "dropped" in grp.columns else grp
+        if good.empty:
+            continue
+        T2_0 = good["T2"].iloc[0]
+        alpha = 1.0 - good["T2"] / T2_0
+        df.loc[good.index, "alpha"] = alpha.values
+    return df
+
+
+def t2_alpha_model(alpha, B, a0):
+    """T2(alpha) = T2_0 * exp(B * alpha / (a0 - alpha))"""
+    return np.exp(B * alpha / (a0 - alpha))   # normalised: divide by T2_0
+
+
+def fit_t2_alpha(df: pd.DataFrame, sample: str, temp: str) -> dict | None:
+    """
+    Fit T2/T2_0 vs alpha to the model exp(B*alpha/(a0-alpha)).
+    Returns dict with B, a0 and their uncertainties, or None if fit fails.
+    """
+    grp = df[(df["sample"] == sample) & (df["temp"] == temp)]
+    if "dropped" in grp.columns:
+        grp = grp[~grp["dropped"]]
+    grp = grp.dropna(subset=["alpha"])
+    if len(grp) < 3:
+        return None
+
+    T2_0  = grp["T2"].iloc[0]
+    alpha = grp["alpha"].values
+    y     = grp["T2"].values / T2_0   # normalised
+
+    # Exclude alpha >= a0 to avoid singularity; a0 must be > max(alpha)
+    alpha_max = alpha.max()
+
+    try:
+        popt, pcov = curve_fit(
+            t2_alpha_model, alpha, y,
+            p0=[-2.0, min(alpha_max * 1.1, 0.99)],
+            bounds=([-np.inf, alpha_max + 1e-6], [0, np.inf]),
+            maxfev=5000,
+        )
+        perr = np.sqrt(np.diag(pcov))
+        return {
+            "sample": sample, "temp": temp,
+            "T2_0":   T2_0,
+            "B":      popt[0], "B_err":  perr[0],
+            "a0":     popt[1], "a0_err": perr[1],
+        }
+    except Exception as e:
+        print(f"  [WARN] T2(alpha) fit failed for {sample} {temp}: {e}")
+        return None
 
 
 # ── Plotting ─────────────────────────────────────────────────────────────────
 
+def _cap_err(vals: pd.Series, errs: pd.Series, max_relative: float = 0.2) -> pd.Series:
+    """Cap error bars at max_relative * |value| to keep plots legible."""
+    return np.minimum(errs, max_relative * vals.abs())
+
+
 def plot_sample(df: pd.DataFrame, sample: str, temp: str, out_dir: Path) -> None:
-    """T2 and beta vs elapsed time for one sample, saved as PNG."""
+    """T2 and beta vs elapsed time for one sample, saved as PNG.
+    Good fits shown as solid lines; dropped scans shown as faded red markers."""
     grp = df[(df["sample"] == sample) & (df["temp"] == temp)]
     if grp.empty:
         return
 
+    good    = grp[~grp["dropped"]] if "dropped" in grp.columns else grp
+    dropped = grp[grp["dropped"]]  if "dropped" in grp.columns else grp.iloc[0:0]
+
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
     fig.suptitle(f"{sample} — {temp}")
 
-    ax1.errorbar(grp["elapsed_min"], grp["T2"], yerr=grp["T2_err"],
+    ax1.errorbar(good["elapsed_min"], good["T2"],
+                 yerr=_cap_err(good["T2"], good["T2_err"]),
                  fmt="o-", capsize=3)
+    ax1.scatter(dropped["elapsed_min"], dropped["T2"],
+                color="red", alpha=0.4, zorder=3, s=20)
     ax1.set_ylabel("T₂ (s)")
 
-    ax2.errorbar(grp["elapsed_min"], grp["beta"], yerr=grp["beta_err"],
+    ax2.errorbar(good["elapsed_min"], good["beta"],
+                 yerr=_cap_err(good["beta"], good["beta_err"]),
                  fmt="o-", capsize=3, color="C1")
+    ax2.scatter(dropped["elapsed_min"], dropped["beta"],
+                color="red", alpha=0.4, zorder=3, s=20)
     ax2.set_ylabel("β")
     ax2.set_xlabel("Elapsed time (min)")
 
@@ -298,25 +476,166 @@ def plot_sample(df: pd.DataFrame, sample: str, temp: str, out_dir: Path) -> None
     plt.close(fig)
 
 
+# ── Decay diagnostic ─────────────────────────────────────────────────────────
+
+def plot_decays(zip_path: Path, wm_id: str, temp: str, sample: str,
+                out_dir: Path, direct_prefix: str | None = None) -> None:
+    """
+    For each scan in a sample, plot the raw CPMG decay and the stretched
+    exponential fit on a shared grid. One PNG per sample saved to out_dir/decays/.
+    Dropped scans are highlighted in red.
+    """
+    print(f"Decay diagnostics: {sample} ({wm_id}) at {temp}...")
+    with zipfile.ZipFile(zip_path) as zf:
+        if direct_prefix is not None:
+            scans = list_scans_direct(zf, direct_prefix)
+        else:
+            scans = list_scans(zf, wm_id)
+        results = []
+        prev    = None
+        A_first = None
+        for scan in scans:
+            r = fit_scan(scan, zf, prev=prev, A_first=A_first)
+            if r is not None:
+                if A_first is None:
+                    A_first = r["A"]
+                results.append(r)
+                prev = r
+
+    if not results:
+        print("  No results.")
+        return
+
+    n = len(results)
+    ncols = 4
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 3.5, nrows * 2.8))
+    axes = np.array(axes).flatten()
+
+    for i, r in enumerate(results):
+        ax = axes[i]
+        t, y = r["_t"], r["_y"]
+        y_fit = stretched_exp(t, r["A"], r["T2"], r["beta"], r["c"])
+
+        color = "red" if r.get("dropped") else "C0"
+        ax.plot(t * 1000, y, ".", ms=3, color=color, alpha=0.6)
+        ax.plot(t * 1000, y_fit, "-", color="k", lw=1)
+        ax.set_title(
+            f"#{r['scan']}  T₂={r['T2']*1000:.2f}ms  β={r['beta']:.2f}",
+            fontsize=7, color=color
+        )
+        ax.tick_params(labelsize=6)
+        ax.set_xlabel("t (ms)", fontsize=6)
+
+    # Hide unused axes
+    for ax in axes[n:]:
+        ax.set_visible(False)
+
+    fig.suptitle(f"{sample} — {temp}  |  red = dropped", fontsize=10)
+    fig.tight_layout()
+
+    decay_dir = out_dir / "decays"
+    decay_dir.mkdir(exist_ok=True)
+    fig.savefig(decay_dir / f"{sample}_{temp}_decays.png", dpi=120)
+    plt.close(fig)
+    print(f"  Saved to {decay_dir / f'{sample}_{temp}_decays.png'}")
+
+
+def plot_t2_alpha(df: pd.DataFrame, fit: dict, out_dir: Path) -> None:
+    """Plot T2/T2_0 vs alpha with the fitted model curve."""
+    sample, temp = fit["sample"], fit["temp"]
+    grp = df[(df["sample"] == sample) & (df["temp"] == temp)]
+    if "dropped" in grp.columns:
+        grp = grp[~grp["dropped"]]
+    grp = grp.dropna(subset=["alpha"])
+    if grp.empty:
+        return
+
+    T2_0  = fit["T2_0"]
+    alpha = grp["alpha"].values
+    y     = grp["T2"].values / T2_0
+
+    alpha_fine = np.linspace(0, alpha.max(), 300)
+    # avoid singularity at a0
+    alpha_fine = alpha_fine[alpha_fine < fit["a0"] - 1e-6]
+    y_model    = t2_alpha_model(alpha_fine, fit["B"], fit["a0"])
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.scatter(alpha, y, s=20, zorder=3, label="data")
+    ax.plot(alpha_fine, y_model, "-", color="C1",
+            label=f"B={fit['B']:.3f}, a₀={fit['a0']:.3f}")
+    ax.set_xlabel("α = 1 − T₂/T₂₀")
+    ax.set_ylabel("T₂ / T₂₀")
+    ax.set_title(f"{sample} — {temp}")
+    ax.legend()
+    fig.tight_layout()
+
+    t2a_dir = out_dir / "t2_alpha"
+    t2a_dir.mkdir(exist_ok=True)
+    fig.savefig(t2a_dir / f"{sample}_{temp}_t2alpha.png", dpi=150)
+    plt.close(fig)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--diagnose", nargs=2, metavar=("SAMPLE", "TEMP"),
+                        help="Plot decay diagnostics for one sample, e.g. --diagnose EDA 40C")
+    args = parser.parse_args()
+
     out_dir = Path("cpmg_fit_results")
     out_dir.mkdir(exist_ok=True)
 
-    df = run_all()
-
-    if df.empty:
-        print("No results — check zip paths and WM IDs.")
+    if args.diagnose:
+        sample, temp = args.diagnose
+        if sample == "DAP2":
+            if temp not in DAP2_EXPERIMENTS:
+                print(f"Unknown temp for DAP2: {temp}. Valid: {list(DAP2_EXPERIMENTS)}.")
+            else:
+                plot_decays(DAP2_ZIP, "DAP2", temp, "DAP2", out_dir,
+                            direct_prefix=DAP2_EXPERIMENTS[temp])
+        elif temp not in EXPERIMENTS or sample not in EXPERIMENTS[temp]:
+            print(f"Unknown sample/temp: {sample} {temp}. "
+                  f"Valid temps: {list(EXPERIMENTS)}, or use DAP2.")
+        else:
+            zip_path = ZIP_ROOT / f"{temp}.zip"
+            wm_id = EXPERIMENTS[temp][sample]
+            plot_decays(zip_path, wm_id, temp, sample, out_dir)
     else:
-        # Save combined
-        out_path = out_dir / "all_samples.csv"
-        df.to_csv(out_path, index=False)
-        print(f"\nSaved {len(df)} fits to {out_path}")
+        df = run_all()
 
-        # Save per-sample CSV and plot
-        for (temp, sample), grp in df.groupby(["temp", "sample"]):
-            grp.to_csv(out_dir / f"{sample}_{temp}.csv", index=False)
-            plot_sample(df, sample, temp, out_dir)
+        if df.empty:
+            print("No results — check zip paths and WM IDs.")
+        else:
+            # Strip internal columns before saving; keep dropped for plots
+            csv_df = df.drop(columns=["_t", "_y"], errors="ignore")
 
-        print(df.groupby(["temp", "sample"])[["T2", "beta"]].describe().round(4))
+            # Save all (including dropped) so nothing is silently lost
+            out_path = out_dir / "all_samples.csv"
+            csv_df.to_csv(out_path, index=False)
+            print(f"\nSaved {len(df)} fits to {out_path}")
+
+            csv_df = compute_alpha(csv_df)
+
+            for (temp, sample), grp in csv_df.groupby(["temp", "sample"]):
+                grp.to_csv(out_dir / f"{sample}_{temp}.csv", index=False)
+                plot_sample(csv_df, sample, temp, out_dir)
+
+            # Fit T2(alpha) model for each sample
+            t2a_results = []
+            for (temp, sample) in csv_df.groupby(["temp", "sample"]).groups:
+                result = fit_t2_alpha(csv_df, sample, temp)
+                if result:
+                    t2a_results.append(result)
+                    plot_t2_alpha(csv_df, result, out_dir)
+
+            if t2a_results:
+                t2a_df = pd.DataFrame(t2a_results)
+                t2a_df.to_csv(out_dir / "t2_alpha_fits.csv", index=False)
+                print("\nT2(alpha) fit results:")
+                print(t2a_df.to_string(index=False))
+
+            good_df = csv_df[~csv_df["dropped"]] if "dropped" in csv_df.columns else csv_df
+            print(good_df.groupby(["temp", "sample"])[["T2", "beta"]].describe().round(4))
