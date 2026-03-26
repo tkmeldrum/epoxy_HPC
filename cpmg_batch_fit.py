@@ -234,34 +234,31 @@ def stretched_exp(t, A, T2, beta):
     return A * np.exp(-(t / T2) ** beta)
 
 
-def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
-    """
-    Fit one scan to A * exp(-(t/T2)^beta).
-
-    Initial guesses are derived from the data; no warm-starting.
-    dropped=True marks poor fits (T2 rel. unc. > 200%).
-    """
+def _read_scan_data(scan: dict, zf: zipfile.ZipFile):
+    """Read and autophase one scan. Returns (t, y, ts, idx) or None."""
     idx = scan["index"]
     try:
         par_bytes  = zf.read(scan["par_info"].filename)
         data_bytes = zf.read(scan["data_info"].filename)
-
         params = _read_params_from_bytes(par_bytes)
         t, y   = _prepare_t2_from_bytes(data_bytes, params)
         ts     = datetime(*scan["data_info"].date_time)
+        return t, y, ts, idx
+    except Exception as e:
+        print(f"  [WARN] scan {idx} (read): {e}")
+        return None
 
+
+def _fit_echo_array(t, y, ts, idx, n_avg=1) -> dict | None:
+    """Fit a (possibly averaged) echo array to A * exp(-(t/T2)^beta)."""
+    try:
         A0 = float(np.max(y)) if np.max(y) > 0 else 1.0
-
-        # T2 guess: first time where signal drops to half-max
         half_max_idx = np.searchsorted(-y, -A0 / 2)
         T2_0 = float(t[min(half_max_idx, len(t) - 1)])
-
         p0     = [A0, T2_0, 1.0]
         bounds = ([0, 0, 0], [np.inf, np.inf, 5])
-
         popt, pcov = curve_fit(stretched_exp, t, y, p0=p0,
                                bounds=bounds, maxfev=5000)
-
         perr = np.sqrt(np.diag(pcov))
         drop_unc  = popt[1] > 0 and perr[1] / popt[1] > 2.0
         drop_beta = popt[2] > 2.0
@@ -270,28 +267,43 @@ def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
             print(f"  [DROP] scan {idx}: T2 rel. unc. = {perr[1]/popt[1]:.2f}")
         if drop_beta:
             print(f"  [DROP] scan {idx}: beta = {popt[2]:.2f} > 2")
-
         return {
             "scan":      idx,
             "timestamp": ts,
+            "n_avg":     n_avg,
             "A":         popt[0], "A_err":    perr[0],
             "T2":        popt[1], "T2_err":   perr[1],
             "beta":      popt[2], "beta_err": perr[2],
-            # "c":         popt[3], "c_err":    perr[3],
             "dropped":   dropped,
             "_t": t, "_y": y,
         }
     except Exception as e:
-        print(f"  [WARN] scan {idx}: {e}")
+        print(f"  [WARN] scan {idx} (fit): {e}")
         return None
+
+
+def fit_scan(scan: dict, zf: zipfile.ZipFile) -> dict | None:
+    """Read and fit one scan. Thin wrapper used by plot_decays."""
+    data = _read_scan_data(scan, zf)
+    if data is None:
+        return None
+    return _fit_echo_array(*data)
 
 
 # ── Per-sample batch runner ───────────────────────────────────────────────────
 
+N_AVG_TARGET  = 20    # target number of averaged points in the low-T2 tail
+T2_AVG_THRESH = 0.2  # fraction of T2(0) below which averaging kicks in
+
+
 def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str,
                    direct_prefix: str | None = None) -> pd.DataFrame:
-    """Load all scans for one sample from a zip and fit them independently.
-    If direct_prefix is given, uses list_scans_direct instead of list_scans."""
+    """Load all scans for one sample and fit with adaptive tail averaging.
+
+    Pass 1: fit every scan individually.
+    Find the first scan where T2 < T2_AVG_THRESH * T2(0) (first reliable T2);
+    everything from that point onward is re-binned into ~N_AVG_TARGET averaged points.
+    """
     print(f"Processing {sample} ({wm_id}) at {temp}...")
     with zipfile.ZipFile(zip_path) as zf:
         if direct_prefix is not None:
@@ -299,23 +311,92 @@ def process_sample(zip_path: Path, wm_id: str, temp: str, sample: str,
         else:
             scans = list_scans(zf, wm_id)
         print(f"  Found {len(scans)} scans.")
+        scan_data = [d for scan in scans
+                     if (d := _read_scan_data(scan, zf)) is not None]
 
-        results = []
-        for scan in scans:
-            result = fit_scan(scan, zf)
-            if result is not None:
-                results.append(result)
+    if not scan_data:
+        return pd.DataFrame()
 
-    results = [r for r in results if r is not None]
+    # Pass 1: fit all individually
+    results_p1 = [_fit_echo_array(*d) for d in scan_data]
+
+    # T2_0: first non-dropped scan with T2_err/T2 < 0.5
+    T2_0_result = next(
+        (r for r in results_p1
+         if r is not None and not r["dropped"] and r["T2"] > 0
+         and r["T2_err"] / r["T2"] < 0.5),
+        None
+    )
+
+    if T2_0_result is None:
+        results = [r for r in results_p1 if r is not None]
+    else:
+        T2_0      = T2_0_result["T2"]
+        threshold = T2_AVG_THRESH * T2_0
+        print(f"  T2(0)={T2_0:.4f} s  →  threshold={threshold:.4f} s ({T2_AVG_THRESH*100:.0f}%)")
+
+        # First position where T2 drops below threshold — everything after is averaged
+        switch_pos = next(
+            (i for i, r in enumerate(results_p1) if r is not None and r["T2"] < threshold),
+            None
+        )
+        if switch_pos is not None:
+            sr = results_p1[switch_pos]
+            print(f"  Switch at scan {sr['scan']}, T2={sr['T2']:.4f} s"
+                  f"  ({len(results_p1) - switch_pos} scans → averaged tail)")
+
+        if switch_pos is None:
+            results = [r for r in results_p1 if r is not None]
+        else:
+            high_results = [r for r in results_p1[:switch_pos] if r is not None]
+            low_data     = scan_data[switch_pos:]
+            n_low        = len(low_data)
+            n_avg        = max(1, round(n_low / N_AVG_TARGET))
+            n_bins       = n_low // n_avg
+            print(f"  Low-T2 tail: {n_low} scans → bins of {n_avg} (~{n_bins} points)")
+
+            # Split low_data into contiguous runs of equal echo count
+            echo_runs = []
+            for d in low_data:
+                if echo_runs and len(d[1]) == len(echo_runs[-1][0][1]):
+                    echo_runs[-1].append(d)
+                else:
+                    echo_runs.append([d])
+
+            # Within each run, build groups of n_avg; fold remainder into last
+            groups = []
+            for run in echo_runs:
+                n_run  = len(run)
+                n_full = n_run // n_avg
+                g = [run[i * n_avg:(i + 1) * n_avg] for i in range(n_full)]
+                remainder = run[n_full * n_avg:]
+                if remainder:
+                    if g:
+                        g[-1] = g[-1] + remainder
+                    else:
+                        g = [remainder]
+                groups.extend(g)
+
+            low_results = []
+            for group in groups:
+                t     = group[0][0]
+                y_avg = np.mean([d[1] for d in group], axis=0)
+                ts    = group[len(group) // 2][2]   # midpoint timestamp
+                idx   = group[0][3]
+                r = _fit_echo_array(t, y_avg, ts, idx, n_avg=len(group))
+                if r is not None:
+                    low_results.append(r)
+
+            results = high_results + low_results
+
     for r in results:
         r.pop("_t", None)
         r.pop("_y", None)
+
     df = pd.DataFrame(results)
-    # keep dropped column for plotting; strip before CSV save
     df.insert(0, "sample", sample)
     df.insert(1, "temp",   temp)
 
-    # Time since first scan (minutes)
     if not df.empty:
         t0 = df["timestamp"].iloc[0]
         df["elapsed_min"] = [(ts - t0).total_seconds() / 60 for ts in df["timestamp"]]
@@ -361,8 +442,9 @@ def run_all() -> pd.DataFrame:
 
 def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add alpha = 1 - T2 / T2_initial to each sample group.
-    Uses the first non-dropped scan's T2 as T2_initial.
+    Add alpha = 1 - T2 / max(T2) to each sample group.
+    Alpha is only assigned to scans at or after the max-T2 point (post-peak),
+    so pre-peak scans (T2 still rising) are excluded from downstream analysis.
     Only operates on good (non-dropped) fits.
     """
     df = df.copy()
@@ -371,20 +453,25 @@ def compute_alpha(df: pd.DataFrame) -> pd.DataFrame:
         good = grp[~grp["dropped"]] if "dropped" in grp.columns else grp
         if good.empty:
             continue
-        T2_0 = good["T2"].iloc[0]
-        alpha = 1.0 - good["T2"] / T2_0
-        df.loc[good.index, "alpha"] = alpha.values
+        reliable   = good[good["T2_err"] / good["T2"] < 0.5]
+        ref        = reliable if not reliable.empty else good
+        T2_max     = ref["T2"].max()
+        peak_idx   = ref["T2"].idxmax()
+        post_peak  = good.loc[peak_idx:]
+        alpha      = 1.0 - post_peak["T2"] / T2_max
+        df.loc[post_peak.index, "alpha"] = alpha.values
     return df
 
 
-def t2_alpha_model(alpha, B, a0):
-    """T2(alpha) = T2_0 * exp(B * alpha / (a0 - alpha))"""
-    return np.exp(B * alpha / (a0 - alpha))   # normalised: divide by T2_0
+def r2_alpha_model(alpha, B, a0):
+    """R2(alpha) = R2_0 * exp(B * alpha / (a0 - alpha));  B > 0"""
+    return np.exp(B * alpha / (a0 - alpha))   # normalised: R2 / R2_0
 
 
 def fit_t2_alpha(df: pd.DataFrame, sample: str, temp: str) -> dict | None:
     """
-    Fit T2/T2_0 vs alpha to the model exp(B*alpha/(a0-alpha)).
+    Fit R2/R2_0 vs alpha to R2_alpha_model (B > 0).
+    R2_0 = 1/max(T2) (most liquid state, alpha=0 reference).
     Returns dict with B, a0 and their uncertainties, or None if fit fails.
     """
     grp = df[(df["sample"] == sample) & (df["temp"] == temp)]
@@ -394,18 +481,17 @@ def fit_t2_alpha(df: pd.DataFrame, sample: str, temp: str) -> dict | None:
     if len(grp) < 3:
         return None
 
-    T2_0  = grp["T2"].iloc[0]
+    T2_0  = grp["T2"].max()   # max(T2) → R2_0 = 1/T2_0
     alpha = grp["alpha"].values
-    y     = grp["T2"].values / T2_0   # normalised
+    y     = T2_0 / grp["T2"].values   # R2 / R2_0 = T2_0 / T2
 
-    # Exclude alpha >= a0 to avoid singularity; a0 must be > max(alpha)
     alpha_max = alpha.max()
 
     try:
         popt, pcov = curve_fit(
-            t2_alpha_model, alpha, y,
-            p0=[-2.0, min(alpha_max * 1.1, 0.99)],
-            bounds=([-np.inf, alpha_max + 1e-6], [0, np.inf]),
+            r2_alpha_model, alpha, y,
+            p0=[2.0, alpha_max * 1.05],
+            bounds=([0, alpha_max + 1e-6], [np.inf, np.inf]),
             maxfev=5000,
         )
         perr = np.sqrt(np.diag(pcov))
@@ -416,7 +502,7 @@ def fit_t2_alpha(df: pd.DataFrame, sample: str, temp: str) -> dict | None:
             "a0":     popt[1], "a0_err": perr[1],
         }
     except Exception as e:
-        print(f"  [WARN] T2(alpha) fit failed for {sample} {temp}: {e}")
+        print(f"  [WARN] R2(alpha) fit failed for {sample} {temp}: {e}")
         return None
 
 
@@ -448,7 +534,8 @@ def plot_sample(df: pd.DataFrame, sample: str, temp: str, out_dir: Path) -> None
                  fmt="o-", capsize=3)
     ax1.scatter(dropped["elapsed_min"], dropped["T2"],
                 color="red", alpha=0.4, zorder=3, s=20)
-    ax1.set_ylim(*T2_YLIM)
+    ax1.set_yscale("log")
+    ax1.set_ylim(1e-5, T2_YLIM[1])
     ax1.set_ylabel("T₂ (s)")
     # asterisks for out-of-range T2 points
     clipped_t2 = grp[grp["T2"] > T2_YLIM[1]]
@@ -471,6 +558,17 @@ def plot_sample(df: pd.DataFrame, sample: str, temp: str, out_dir: Path) -> None
         ax2.scatter(clipped_beta["elapsed_min"],
                     [BETA_YLIM[1] * 0.97] * len(clipped_beta),
                     marker="*", color="C1", s=60, zorder=5, clip_on=False)
+
+    # Shade averaged tail region
+    if "n_avg" in grp.columns and (grp["n_avg"] > 1).any():
+        avg_rows  = grp[grp["n_avg"] > 1]
+        t_shade   = avg_rows["elapsed_min"].min()
+        t_end     = grp["elapsed_min"].max()
+        n_label   = int(avg_rows["n_avg"].median())
+        for ax in (ax1, ax2):
+            ax.axvspan(t_shade, t_end, alpha=0.08, color="gray", zorder=0)
+        ax1.text(t_shade, T2_YLIM[1] * 0.95, f"N≈{n_label} avg",
+                 fontsize=7, va="top", ha="left", color="gray")
 
     fig.tight_layout()
     fig.savefig(out_dir / f"{sample}_{temp}.png", dpi=150)
@@ -538,35 +636,50 @@ def plot_decays(zip_path: Path, wm_id: str, temp: str, sample: str,
     print(f"  Saved to {decay_dir / f'{sample}_{temp}_decays.png'}")
 
 
-def plot_t2_alpha(df: pd.DataFrame, fit: dict, out_dir: Path) -> None:
-    """Plot T2/T2_0 vs alpha with the fitted model curve."""
-    sample, temp = fit["sample"], fit["temp"]
-    grp = df[(df["sample"] == sample) & (df["temp"] == temp)]
-    if "dropped" in grp.columns:
-        grp = grp[~grp["dropped"]]
-    grp = grp.dropna(subset=["alpha"])
+def plot_t2_alpha(df: pd.DataFrame, sample: str, temp: str,
+                  out_dir: Path, fit: dict | None = None) -> None:
+    """Alpha vs time (always) and T2/T2_max vs alpha with fit (when fit succeeds)."""
+    grp_all = df[(df["sample"] == sample) & (df["temp"] == temp)]
+    if "dropped" in grp_all.columns:
+        grp_all = grp_all[~grp_all["dropped"]]
+
+    grp = grp_all.dropna(subset=["alpha"])
     if grp.empty:
         return
 
-    T2_0  = fit["T2_0"]
     alpha = grp["alpha"].values
-    y     = grp["T2"].values / T2_0
+    has_fit = fit is not None
 
-    alpha_fine = np.linspace(0, alpha.max(), 300)
-    # avoid singularity at a0
-    alpha_fine = alpha_fine[alpha_fine < fit["a0"] - 1e-6]
-    y_model    = t2_alpha_model(alpha_fine, fit["B"], fit["a0"])
+    fig, axes = plt.subplots(1, 2 if has_fit else 1,
+                             figsize=(10, 4) if has_fit else (5, 4))
+    ax1 = axes[0] if has_fit else axes
+    fig.suptitle(f"{sample} — {temp}")
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.scatter(alpha, y, s=20, zorder=3, label="data")
-    ax.plot(alpha_fine, y_model, "-", color="C1",
-            label=f"B={fit['B']:.3f}, a₀={fit['a0']:.3f}")
-    ax.set_xlabel("α = 1 − T₂/T₂₀")
-    ax.set_ylabel("T₂ / T₂₀")
-    ax.set_title(f"{sample} — {temp}")
-    ax.legend()
+    # Left: alpha vs elapsed time
+    ax1.scatter(grp["elapsed_min"], alpha, s=20, zorder=3)
+    ax1.set_xlabel("Elapsed time (min)")
+    ax1.set_ylabel("α = 1 − T₂ / max(T₂)")
+    ax1.set_ylim(0, None)
+
+    # Right: R2/R2_0 vs alpha with model (only when fit succeeded)
+    if has_fit:
+        T2_0       = fit["T2_0"]
+        y          = T2_0 / grp["T2"].values   # R2 / R2_0
+        alpha_fine = np.linspace(0, alpha.max(), 300)
+        alpha_fine = alpha_fine[alpha_fine < fit["a0"] - 1e-6]
+        y_model    = r2_alpha_model(alpha_fine, fit["B"], fit["a0"])
+
+        ax2 = axes[1]
+        ax2.scatter(alpha, y, s=20, zorder=3, label="data")
+        ax2.plot(alpha_fine, y_model, "-", color="C1",
+                 label=f"B = {fit['B']:.3f} ± {fit['B_err']:.3f}\n"
+                       f"a₀ = {fit['a0']:.3f} ± {fit['a0_err']:.3f}")
+        ax2.set_xlabel("α")
+        ax2.set_ylabel("R₂ / R₂₀")
+        ax2.set_ylim(1, None)
+        ax2.legend(fontsize=8)
+
     fig.tight_layout()
-
     t2a_dir = out_dir / "t2_alpha"
     t2a_dir.mkdir(exist_ok=True)
     fig.savefig(t2a_dir / f"{sample}_{temp}_t2alpha.png", dpi=150)
@@ -615,24 +728,38 @@ if __name__ == "__main__":
             print(f"\nSaved {len(df)} fits to {out_path}")
 
             csv_df = compute_alpha(csv_df)
+            csv_df.to_csv(out_path, index=False)   # overwrite with alpha included
 
+            # Per-sample CSVs and summary plots
             for (temp, sample), grp in csv_df.groupby(["temp", "sample"]):
                 grp.to_csv(out_dir / f"{sample}_{temp}.csv", index=False)
-                plot_sample(csv_df, sample, temp, out_dir)
+                try:
+                    plot_sample(csv_df, sample, temp, out_dir)
+                except Exception as e:
+                    print(f"  [WARN] plot_sample failed for {sample} {temp}: {e}")
 
-            # Fit T2(alpha) model for each sample
+            # T2(alpha) fit and alpha plots — always plot, fit when possible
             t2a_results = []
             for (temp, sample) in csv_df.groupby(["temp", "sample"]).groups:
-                result = fit_t2_alpha(csv_df, sample, temp)
-                if result:
-                    t2a_results.append(result)
-                    plot_t2_alpha(csv_df, result, out_dir)
+                try:
+                    result = fit_t2_alpha(csv_df, sample, temp)
+                    if result:
+                        t2a_results.append(result)
+                except Exception as e:
+                    print(f"  [WARN] T2(alpha) fit failed for {sample} {temp}: {e}")
+                    result = None
+                try:
+                    plot_t2_alpha(csv_df, sample, temp, out_dir, fit=result)
+                except Exception as e:
+                    print(f"  [WARN] alpha plot failed for {sample} {temp}: {e}")
 
             if t2a_results:
                 t2a_df = pd.DataFrame(t2a_results)
                 t2a_df.to_csv(out_dir / "t2_alpha_fits.csv", index=False)
                 print("\nT2(alpha) fit results:")
                 print(t2a_df.to_string(index=False))
+            else:
+                print("\n[WARN] No T2(alpha) fits succeeded.")
 
             good_df = csv_df[~csv_df["dropped"]] if "dropped" in csv_df.columns else csv_df
             print(good_df.groupby(["temp", "sample"])[["T2", "beta"]].describe().round(4))
