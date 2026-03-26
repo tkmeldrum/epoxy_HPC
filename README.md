@@ -91,3 +91,30 @@ Alpha-vs-time plots are always saved to `cpmg_fit_results/t2_alpha/` regardless 
 **By hardener**, EDA has the highest B at 25 and 33°C (most abrupt mobility loss per unit conversion). DAP2 consistently has the lowest B and a₀ at every temperature, notably different from DAP despite being nominally the same hardener — likely reflects a batch or sample-preparation difference and should be investigated.
 
 **T2_0** increases with temperature as expected (more liquid-like uncured state). EDA 40°C is anomalous (T2_0 ≈ 0.112 s, ~3× other samples at 40°C), suggesting either a slower cure onset or that the first reliable scan was captured unusually early.
+
+## Kinetic fitting of NMR alpha(t)
+
+### Kamal-Malkin (`BatchBayesian_nmr_km.py`)
+
+Fits the NMR-derived α(t) curves to the Kamal-Malkin ODE:
+
+```
+dα/dt = (k1 + k2·α^m) · (1-α)^(n/2) · (r-α)^(n/2)
+```
+
+**r = 2.0 fixed** by stoichiometry for all samples. Time is converted from minutes to **seconds** before fitting so that k1 and k2 are in s⁻¹, consistent with DSC-derived parameters in `fit_results/combined_results.csv`.
+
+Parameters: `[log_k1, log_k2, m, n, log_sigma]` (5 free). Fitting uses Nelder-Mead least-squares; optional MCMC via `--mcmc` flag (emcee, 64 walkers). Outputs: `fit_results_nmr/km_results.csv`. Per-dataset plots (data + fit + annotated parameters) saved to `fit_plots_nmr/`.
+
+**Comparison to DSC fits (Mar 2026, NMR 25°C datasets):** after converting NMR time to seconds, k2 values agree with DSC to within a factor of ~2 for most samples (e.g. EDA 25°C: NMR 2.6×10⁻⁴ s⁻¹ vs DSC 2.7×10⁻⁴ s⁻¹). Residual differences reflect the different r used (r=2 here vs r≈0.6–0.8 in DSC fits) and the different alpha scales (NMR alpha from T2, DSC alpha from enthalpy). k1 is frequently negligible in NMR fits (hits lower bound), consistent with the autocatalytic regime dominating at low temperature. **EDA 40°C is an outlier** — RSS is ~50× larger than all other datasets, consistent with the anomalous T2_0 for that sample; the KM model fails to capture this cure trajectory.
+
+### Corezzi diffusion-corrected kinetics (`BatchBayesian_nmr_corezzi.py`)
+
+Extends the KM model with diffusion correction (Corezzi Eq. 8):
+
+```
+k_eff_i = k_ci / (1 + (k_ci/k0) · exp(ξ · B · α / (a0 - α)))
+dα/dt   = (k_eff1 + k_eff2·α^m) · (1-α)^(n/2) · (r-α)^(n/2)
+```
+
+B and a0 are **fixed** per (sample, temp) from the NMR R2(α) fit (`cpmg_fit_results/t2_alpha_fits.csv`). Additional free parameters: ξ (dimensionless diffusion coupling) and log_k0 (reference rate). As ξ→0 the model reduces to Kamal-Malkin. Outputs: `fit_results_nmr/corezzi_results.csv`, with RSS printed alongside KM RSS for direct comparison.
