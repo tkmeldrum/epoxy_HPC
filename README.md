@@ -230,3 +230,31 @@ squeue -u tkmeldrum --start   # check estimated start time
 **Before submitting:** ensure `local_config.py` on the cluster has `N_WORKERS = 20`, and that `mcmc_config.py` has `nsteps > burnin` (e.g. `nsteps = 30000`, `burnin = 5000`). Copy `cpmg_fit_results/t2_alpha_fits.csv`, `cpmg_fit_results/all_samples.csv`, and optionally `fit_results_nmr/km_results.csv` to the cluster before running.
 
 **Note on parallelism:** `N_WORKERS` in `local_config.py` controls the `multiprocessing.Pool` size and should match `--cpus-per-task`. The natural ceiling for emcee parallelism is `nwalkers / 2`; requesting more cores than this wastes allocation. On bora with `nwalkers = 64`, the effective ceiling is 32 — but bora nodes only have 20 cores, so `N_WORKERS = 20` is the practical limit.
+
+---
+
+### `final_results_to_plots.py` — Arrhenius analysis and parameter trend plots
+
+Reads a posterior summary CSV and produces two PDFs:
+
+1. **`fit_trends_{timestamp}.pdf`** — all KM parameters (k₁, k₂, m, n, r) vs 1/T for each sample and method, with error bars from posterior CIs.
+2. **`arrhenius_fits_{timestamp}.pdf`** — ln(k₁) and ln(k₂) vs 1/T with linear fits and printed activation energies (Ea ± uncertainty in kJ/mol).
+
+```bash
+python final_results_to_plots.py                              # uses posterior_summary.csv
+python final_results_to_plots.py combined_arrhenius_DATE.csv  # specify input file
+```
+
+**Input CSV format:** `Label` column with `{Method}_{Sample}_{Temp}C` (e.g. `DSC_EDA_25C`), plus `log_k1_median/CI_lower/CI_upper`, `log_k2_median/CI_lower/CI_upper`, `m_median/CI_lower/CI_upper`, `n_median/CI_lower/CI_upper`. DAP2 is automatically remapped to DAP/NMR2 for plotting.
+
+**NMR LS fits have no posterior CI** — CI columns are set equal to the median, giving zero-width error bars and unweighted Arrhenius regression.
+
+---
+
+### `combined_arrhenius_{DATE}.csv` — merged DSC + NMR KM results
+
+Combined input file for `final_results_to_plots.py`, merging:
+- DSC MCMC posteriors from `posterior_summary.csv` (18 datasets, 25–100°C)
+- NMR KM LS fits from `fit_results_nmr/km_results.csv` (12 datasets, 25–40°C)
+
+Regenerate by re-running the merge inline or from a script if either source file is updated.

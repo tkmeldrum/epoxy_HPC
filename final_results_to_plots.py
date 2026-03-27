@@ -1,3 +1,4 @@
+import argparse
 import pandas as pd
 import numpy as np
 import re
@@ -194,7 +195,11 @@ def plot_arrhenius_fits(df, fit_methods=None):
 
 # === MAIN ===
 if __name__ == "__main__":
-    df = pd.read_csv("posterior_summary.csv")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("csv", nargs="?", default="posterior_summary.csv",
+                        help="Input CSV (default: posterior_summary.csv)")
+    args = parser.parse_args()
+    df = pd.read_csv(args.csv)
     df[['Method', 'Sample', 'Temp']] = df['Label'].apply(lambda x: pd.Series(parse_label(x)))
     df['1/T [K-1]'] = 1 / (df['Temp'] + 273.15)
 
