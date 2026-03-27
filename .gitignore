@@ -3,3 +3,5 @@
 /logs
 /__pycache__
 /diagnostic_plots
+*.npz
+*.pkl

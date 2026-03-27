@@ -2,11 +2,11 @@
 #SBATCH --job-name=corezzi_nmr
 #SBATCH --output=/sciclone/home/tkmeldrum/epoxy_kinetics/logs/%x_%A_%a.out
 #SBATCH --error=/sciclone/home/tkmeldrum/epoxy_kinetics/logs/%x_%A_%a.err
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=tkmeldrum@wm.edu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=32
 #SBATCH --time=48:00:00
 #SBATCH --array=1-12
 
@@ -18,7 +18,7 @@ echo "Starting run at: `date`"
 # Activate conda
 conda activate epoxy
 
-# Define arrays (tcsh syntax)
+# Define arrays (tcsh syntax — 1-indexed)
 set SAMPLES = (EDA  EDA  EDA  DAP  DAP  DAP  DAP2 DAP2 DAP2 DAB  DAB  DAB)
 set TEMPS   = (25C  33C  40C  25C  33C  40C  25C  33C  40C  25C  33C  40C)
 
