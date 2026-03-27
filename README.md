@@ -201,3 +201,32 @@ python BatchBayesian_plots.py --burnin 5000 --stride 5               # override 
 python MCMC_diagnostics.py                             # all files in mcmc_samples/
 python MCMC_diagnostics.py mcmc_samples/NMR_EDA_25C_fitdata.npz      # one file
 ```
+
+---
+
+### `run_corezzi_all.sh` — Run all 12 NMR Corezzi MCMC fits sequentially (local)
+
+Runs all 12 (sample, temp) combinations back-to-back on the local machine. Intended for overnight runs on a laptop.
+
+```bash
+conda activate epoxy
+mkdir -p logs
+nohup ./run_corezzi_all.sh > logs/corezzi_overnight.log 2>&1 &
+tail -f logs/corezzi_overnight.log   # monitor progress
+```
+
+---
+
+### `epoxy_corezzi_nmr.sh` — SLURM array job for bora cluster
+
+Submits all 12 NMR Corezzi MCMC fits as a 12-element SLURM array on bora (20 cores/node, 72 h walltime). Each task runs one (sample, temp) independently.
+
+```bash
+mkdir -p /sciclone/home/tkmeldrum/epoxy_kinetics/logs
+sbatch epoxy_corezzi_nmr.sh
+squeue -u tkmeldrum --start   # check estimated start time
+```
+
+**Before submitting:** ensure `local_config.py` on the cluster has `N_WORKERS = 20`, and that `mcmc_config.py` has `nsteps > burnin` (e.g. `nsteps = 30000`, `burnin = 5000`). Copy `cpmg_fit_results/t2_alpha_fits.csv`, `cpmg_fit_results/all_samples.csv`, and optionally `fit_results_nmr/km_results.csv` to the cluster before running.
+
+**Note on parallelism:** `N_WORKERS` in `local_config.py` controls the `multiprocessing.Pool` size and should match `--cpus-per-task`. The natural ceiling for emcee parallelism is `nwalkers / 2`; requesting more cores than this wastes allocation. On bora with `nwalkers = 64`, the effective ceiling is 32 — but bora nodes only have 20 cores, so `N_WORKERS = 20` is the practical limit.
