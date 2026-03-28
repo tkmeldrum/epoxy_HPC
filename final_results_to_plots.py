@@ -222,7 +222,7 @@ if __name__ == "__main__":
 
     # Plot 1: parameter trends (show NMR and NMR2 as separate colors)
     fig1 = plot_extended_arrhenius(df)
-    fig1.savefig(f"fit_trends_{timestamp}.pdf")
+    fig1.savefig(f"results/fit_trends_{timestamp}.pdf")
 
     # Plot 2: Arrhenius fits
     # Combine NMR2 DAP into NMR for fitting (6 points for DAP NMR fit)
@@ -232,4 +232,4 @@ if __name__ == "__main__":
     df_fit = pd.concat([df, dap_nmr2], ignore_index=True)
 
     fig2 = plot_arrhenius_fits(df_fit, fit_methods=['DSC', 'NMR'])
-    fig2.savefig(f"arrhenius_fits_{timestamp}.pdf")
+    fig2.savefig(f"results/arrhenius_fits_{timestamp}.pdf")
