@@ -177,13 +177,15 @@ Generates posterior overlay, α(t) CI band, dα/dt vs α, chain trace, and corne
 ```bash
 python plot_mcmc.py                                        # all files in mcmc_samples/
 python plot_mcmc.py path/to/file_fitdata.npz               # single file
-python plot_mcmc.py --r 2.0 --input-dir mcmc_samples_nmr --outdir fit_plots_nmr --summary posterior_summary_nmr.csv
+python plot_mcmc.py --r 2.0 --input-dir mcmc_samples_nmr --outdir fit_plots_nmr
 python plot_mcmc.py --burnin 5000 --stride 5               # override mcmc_config
 ```
 
 Only processes `.npz` files directly in `--input-dir` — does not recurse into subdirectories.
 
-**r flag:** use `--r 2.0` for NMR/KM data (stoichiometric ratio). Without it, defaults to `max(a_data)` for DSC data.
+**`--summary`:** defaults to `posterior_summary_{timestamp}.csv` so each run produces a uniquely named file. Pass `--summary myfile.csv` to override.
+
+**`--r`:** use `--r 2.0` for NMR/KM data (stoichiometric ratio). Without it, defaults to `max(a_data)` for DSC data.
 
 ---
 

@@ -456,8 +456,12 @@ if __name__ == "__main__":
         parser.add_argument("--r",         type=float, default=None,          help="Fixed stoichiometric ratio r. Defaults to max(a_data) if not set.")
         parser.add_argument("--input-dir", type=str,   default="mcmc_samples", help="Directory to scan for *_fitdata.npz files (default: mcmc_samples)")
         parser.add_argument("--outdir",    type=str,   default="fit_plots",   help="Output directory for plots (default: fit_plots)")
-        parser.add_argument("--summary",   type=str,   default="posterior_summary.csv", help="Path for the posterior summary CSV")
+        parser.add_argument("--summary",   type=str,   default=None, help="Path for the posterior summary CSV. Defaults to posterior_summary_{timestamp}.csv")
         args = parser.parse_args()
+
+        if args.summary is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            args.summary = f"posterior_summary_{timestamp}.csv"
 
         from mcmc_config import burnin as config_burnin, stride as config_stride
         burnin = args.burnin if args.burnin is not None else config_burnin
