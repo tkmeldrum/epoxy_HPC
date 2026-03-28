@@ -418,6 +418,7 @@ if __name__ == "__main__":
                             help="Optional path to a single .npz file. If omitted, all *_fitdata.npz files in mcmc_samples/ will be processed.")
         parser.add_argument("--burnin", type=int, default=None, help="Burn-in steps to discard")
         parser.add_argument("--stride", type=int, default=None, help="Thinning stride")
+        parser.add_argument("--r", type=float, default=None, help="Fixed stoichiometric ratio r (e.g. 2.0 for KM model). Defaults to max(a_data) if not set.")
         args = parser.parse_args()
 
         from mcmc_config import burnin as config_burnin, stride as config_stride
@@ -440,7 +441,7 @@ if __name__ == "__main__":
             chain = data["chain"]
             t_data = data["t_data"]
             a_data = data["a_data"]
-            r = np.max(a_data)
+            r = args.r if args.r is not None else np.max(a_data)
             print(f"📦 Plotting {label} with burnin={burnin}, stride={stride}, r={r:.4f}")
             make_plots(samples, chain, t_data, a_data, r, label,
                        burnin=burnin, stride=stride)
