@@ -54,6 +54,7 @@ def parse_label(label):
 
 # === Plot 1: Parameter trends vs 1/T ===
 def plot_extended_arrhenius(df, x_col='1/T [K-1]',
+                            ylim_k1=(-25, 0), ylim_k2=(-10, 0),
                             ylim_m=(0, 2.5), ylim_n=(0, 2.5), ylim_r=(0, 1)):
 
     params = [p for p in ("k1","k2","m","n","r") if f"Fit_{p}" in df.columns]
@@ -67,7 +68,8 @@ def plot_extended_arrhenius(df, x_col='1/T [K-1]',
     fig.subplots_adjust(hspace=0.4, wspace=0.3)
 
     def _ylim_for(p):
-        if p in ("k1","k2"): return None  # autoscale
+        if p == "k1": return ylim_k1  # None = autoscale
+        if p == "k2": return ylim_k2  # None = autoscale
         if p == "m": return ylim_m
         if p == "n": return ylim_n
         if p == "r": return ylim_r
