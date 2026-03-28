@@ -28,7 +28,7 @@ def solve_model(log_k1, log_k2, m, n, r, t_data, a_data, eps=1e-10):
     a0 = [np.clip(a_data[0], eps, r - eps)]  # ✅ start from observed α(0)
 
     def ode_rhs(t, a):
-        a = np.clip(a, eps, r - eps)
+        a = np.clip(a, eps, min(1 - eps, r - eps))
         rate = (k1 + k2 * a**m) * (1 - a)**(n/2) * (r - a)**(n/2)
         if not np.isfinite(rate):
             print(f"💥 NaN in rate: a={a}, params=({log_k1}, {log_k2}, {m}, {n}, {r})")
