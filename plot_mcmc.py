@@ -68,7 +68,9 @@ def solve_model(log_k1, log_k2, m, n, r, t_data, a_data, eps=1e-10):
         )
         if not sol.success or not np.all(np.isfinite(sol.y)):
             return np.full_like(t_data, np.nan)
-        return sol.y[0]
+        # Clip to physical bounds: alpha must be positive and below r.
+        # Small negative excursions near zero are numerical artifacts from LSODA.
+        return np.clip(sol.y[0], 1e-10, r - 1e-10)
     except Exception as e:
         print(f"ODE solve failed: {e}")
         return np.full_like(t_data, np.nan)
@@ -259,15 +261,26 @@ def make_plots(samples, chain, t_data, a_data, r, label,
     chain = np.transpose(chain, (1, 0, 2)) # -> (walkers, steps, ndim)
 
     # --- Remove outlier walkers by Mahalanobis distance on per-walker means ---
-    walker_means  = np.mean(chain, axis=1)       # (nwalkers, ndim)
-    ensemble_mean = np.mean(walker_means, axis=0)
-    ensemble_cov  = np.cov(walker_means.T)
-    inv_cov       = np.linalg.pinv(ensemble_cov)
+    walker_means = np.mean(chain, axis=1)   # (nwalkers, ndim)
 
-    dists = np.array([
-        mahalanobis(walker_means[i], ensemble_mean, inv_cov)
-        for i in range(len(walker_means))
-    ])
+    # Discard walkers with non-finite means before computing covariance.
+    finite_mask = np.all(np.isfinite(walker_means), axis=1)
+    if not np.all(finite_mask):
+        print(f"  Warning: {np.sum(~finite_mask)} walkers have non-finite means and are removed before Mahalanobis filtering.")
+        walker_means = walker_means[finite_mask]
+        chain        = chain[finite_mask]
+
+    try:
+        ensemble_mean = np.mean(walker_means, axis=0)
+        ensemble_cov  = np.cov(walker_means.T)
+        inv_cov       = np.linalg.pinv(ensemble_cov)
+        dists = np.array([
+            mahalanobis(walker_means[i], ensemble_mean, inv_cov)
+            for i in range(len(walker_means))
+        ])
+    except np.linalg.LinAlgError as e:
+        print(f"  Warning: Mahalanobis distance failed ({e}). Keeping all finite walkers.")
+        dists = np.zeros(len(walker_means))
 
     cutoff    = 3.0
     walker_ok = dists < cutoff
@@ -313,7 +326,7 @@ def make_plots(samples, chain, t_data, a_data, r, label,
         # Filter criteria: curve must stay within plausible bounds and track the data endpoint.
         # Tolerances are relative to the data range to stay scale-independent.
         max_ok      = np.max(a_fit)   < 1.05 * np.max(a_data)
-        min_ok      = np.min(a_fit)   > 1e-8
+        min_ok      = np.min(a_fit)   > 0
         final_close = np.abs(a_fit[-1] - a_data[-1]) < 0.05 * np.max(a_data)
         monotonic   = np.all(np.diff(a_fit) >= -0.01)
 
@@ -348,27 +361,18 @@ def make_plots(samples, chain, t_data, a_data, r, label,
     filtered_subset = np.array(filtered_subset)
     print(f"  {len(filtered_subset)}/{len(subset)} curves retained for {label}.")
 
-    # --- Generate plots ---
-    t0 = time.time(); plot_posterior_overlay(alpha_preds, t_data, a_data, label, outdir);    print(f"  overlay:       {time.time()-t0:.2f}s")
-    t0 = time.time(); plot_alpha_confidence_band(alpha_preds, t_data, a_data, label, outdir); print(f"  alpha CI:      {time.time()-t0:.2f}s")
-    t0 = time.time(); plot_dadt_vs_alpha(alpha_preds, t_data, a_data, label, outdir);         print(f"  dα/dt vs α:    {time.time()-t0:.2f}s")
-    t0 = time.time(); plot_chains(chain, label, outdir);                                       print(f"  chains:        {time.time()-t0:.2f}s")
-    t0 = time.time(); plot_corner(samples, label, outdir);                                     print(f"  corner:        {time.time()-t0:.2f}s")
-    t0 = time.time(); make_summary_grid(label, outdir);                                        print(f"  summary grid:  {time.time()-t0:.2f}s")
-
-    print(f"  Finished all plots for {label} in {time.time() - start_time:.2f}s")
-
-    # --- 95% CI diagnostic ---
+    # --- Append row to posterior summary CSV ---
+    # Done before plots so results are saved even if a plot function crashes.
+    # Values are stored in the parameter space used by the sampler (log for rate constants).
     ndim        = filtered_subset.shape[1]
     param_names = build_param_names(ndim)
+
     print(f"\n  95% CI widths for {label}:")
     for i, name in enumerate(param_names):
-        vals     = 10**filtered_subset[:, i] if "log" in name else filtered_subset[:, i]
-        lo, hi   = np.percentile(vals, [2.5, 97.5])
+        vals   = 10**filtered_subset[:, i] if "log" in name else filtered_subset[:, i]
+        lo, hi = np.percentile(vals, [2.5, 97.5])
         print(f"    {name:12}: {hi - lo:.3e}")
 
-    # --- Append row to posterior summary CSV ---
-    # Values are stored in the parameter space used by the sampler (log for rate constants).
     header = ["Label"]
     for name in param_names:
         header.extend([f"{name}_median", f"{name}_CI_lower", f"{name}_CI_upper"])
@@ -385,6 +389,17 @@ def make_plots(samples, chain, t_data, a_data, r, label,
         if write_header:
             writer.writerow(header)
         writer.writerow(summary_row)
+    print(f"  Summary written to {summary_path}")
+
+    # --- Generate plots ---
+    t0 = time.time(); plot_posterior_overlay(alpha_preds, t_data, a_data, label, outdir);    print(f"  overlay:       {time.time()-t0:.2f}s")
+    t0 = time.time(); plot_alpha_confidence_band(alpha_preds, t_data, a_data, label, outdir); print(f"  alpha CI:      {time.time()-t0:.2f}s")
+    t0 = time.time(); plot_dadt_vs_alpha(alpha_preds, t_data, a_data, label, outdir);         print(f"  dα/dt vs α:    {time.time()-t0:.2f}s")
+    t0 = time.time(); plot_chains(chain, label, outdir);                                       print(f"  chains:        {time.time()-t0:.2f}s")
+    t0 = time.time(); plot_corner(samples, label, outdir);                                     print(f"  corner:        {time.time()-t0:.2f}s")
+    t0 = time.time(); make_summary_grid(label, outdir);                                        print(f"  summary grid:  {time.time()-t0:.2f}s")
+
+    print(f"  Finished all plots for {label} in {time.time() - start_time:.2f}s")
 
 
 # ---------------------------------------------------------------------------
@@ -416,9 +431,11 @@ def build_param_names(ndim):
 # ---------------------------------------------------------------------------
 
 def load_npz_files(directory):
+    # Only yield files directly in directory — do not recurse into subdirectories.
     for fname in sorted(os.listdir(directory)):
-        if fname.endswith("_fitdata.npz"):
-            yield os.path.join(directory, fname)
+        full = os.path.join(directory, fname)
+        if os.path.isfile(full) and fname.endswith("_fitdata.npz"):
+            yield full
 
 
 # ---------------------------------------------------------------------------
@@ -462,16 +479,24 @@ if __name__ == "__main__":
                 stride=stride,
             )
 
+        def process_file_safe(file_path):
+            try:
+                process_file(file_path)
+            except Exception:
+                print(f"Failed to process {file_path}:")
+                traceback.print_exc()
+                print("Continuing with remaining files.")
+
         if args.file:
             file_path = args.file.strip()
             if not os.path.exists(file_path):
                 print(f"File not found: {file_path!r}")
             else:
-                process_file(file_path)
+                process_file_safe(file_path)
         else:
             for file_path in load_npz_files(args.input_dir):
-                process_file(file_path)
+                process_file_safe(file_path)
 
     except Exception:
-        print("An error occurred during plotting:")
+        print("An error occurred during setup:")
         traceback.print_exc()

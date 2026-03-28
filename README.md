@@ -94,7 +94,7 @@ Alpha-vs-time plots are always saved to `cpmg_fit_results/t2_alpha/` regardless 
 
 ## Kinetic fitting of NMR alpha(t)
 
-### Kamal-Malkin (`BatchBayesian_nmr_km.py`)
+### Kamal-Malkin (`fit_nmr_km.py`)
 
 Fits the NMR-derived α(t) curves to the Kamal-Malkin ODE:
 
@@ -104,11 +104,11 @@ dα/dt = (k1 + k2·α^m) · (1-α)^(n/2) · (r-α)^(n/2)
 
 **r = 2.0 fixed** by stoichiometry for all samples. Time is converted from minutes to **seconds** before fitting so that k1 and k2 are in s⁻¹, consistent with DSC-derived parameters in `fit_results/combined_results.csv`.
 
-Parameters: `[log_k1, log_k2, m, n, log_sigma]` (5 free). Fitting uses Nelder-Mead least-squares; optional MCMC via `--mcmc` flag (emcee, 64 walkers). Outputs: `fit_results_nmr/km_results.csv`. Per-dataset plots (data + fit + annotated parameters) saved to `fit_plots_nmr/`.
+Parameters: `[log_k1, log_k2, m, n, log_sigma]` (5 free). Fitting uses Nelder-Mead least-squares; optional MCMC via `--mcmc` flag (emcee, 64 walkers). Outputs: `fit_results_nmr/km_results.csv`. Per-dataset plots (data + fit + annotated parameters) saved to `fit_plots_nmr/`. MCMC chains saved to `mcmc_samples_nmr/` as `*_fitdata.npz` for post-processing with `plot_mcmc.py`.
 
 **Comparison to DSC fits (Mar 2026, NMR 25°C datasets):** after converting NMR time to seconds, k2 values agree with DSC to within a factor of ~2 for most samples (e.g. EDA 25°C: NMR 2.6×10⁻⁴ s⁻¹ vs DSC 2.7×10⁻⁴ s⁻¹). Residual differences reflect the different r used (r=2 here vs r≈0.6–0.8 in DSC fits) and the different alpha scales (NMR alpha from T2, DSC alpha from enthalpy). k1 is frequently negligible in NMR fits (hits lower bound), consistent with the autocatalytic regime dominating at low temperature. **EDA 40°C is an outlier** — RSS is ~50× larger than all other datasets, consistent with the anomalous T2_0 for that sample; the KM model fails to capture this cure trajectory.
 
-### Corezzi diffusion-corrected kinetics (`BatchBayesian_nmr_corezzi.py`)
+### Corezzi diffusion-corrected kinetics (`BatchBayesian_nmr_corezzi.bak` — archived)
 
 Extends the KM model with diffusion correction (Corezzi Eq. 8):
 
@@ -143,55 +143,47 @@ Outputs to `cpmg_fit_results/`: `all_samples.csv`, per-sample CSVs, summary plot
 
 ---
 
-### `BatchBayesian_nmr_km.py` — Kamal-Malkin fit to NMR α(t)
+### `fit_nmr_km.py` — Kamal-Malkin fit to NMR α(t)
 
 ```bash
-python BatchBayesian_nmr_km.py                    # LS fit, all NMR datasets
-python BatchBayesian_nmr_km.py EDA 25C            # LS fit, one dataset
-python BatchBayesian_nmr_km.py --mcmc             # LS + MCMC, all datasets
-python BatchBayesian_nmr_km.py --mcmc EDA 25C     # LS + MCMC, one dataset
+python fit_nmr_km.py                    # LS fit, all NMR datasets
+python fit_nmr_km.py EDA 25C            # LS fit, one dataset
+python fit_nmr_km.py --mcmc             # LS + MCMC, all datasets
+python fit_nmr_km.py --mcmc EDA 25C     # LS + MCMC, one dataset
 ```
 
-Outputs: `fit_results_nmr/km_results.csv`, per-dataset LS plots in `fit_plots_nmr/`. MCMC chains and plots saved to `mcmc_samples_nmr/` and `fit_plots_nmr/` when `--mcmc` is used.
+Outputs: `fit_results_nmr/km_results.csv`, per-dataset LS plots in `fit_plots_nmr/`. With `--mcmc`, chains saved to `mcmc_samples_nmr/` as `*_fitdata.npz` for post-processing with `plot_mcmc.py`.
 
 ---
 
-### `BatchBayesian_nmr_corezzi.py` — Corezzi diffusion-corrected fit to NMR α(t)
+### `fit_kuro.py` / `fit_kuro_fixedr.py` — Full MCMC for DSC and NMR (fixed r, from `.mat`)
 
-Requires `cpmg_fit_results/t2_alpha_fits.csv` (from `cpmg_batch_fit.py`) and optionally `fit_results_nmr/km_results.csv` for RSS comparison.
-
-```bash
-python BatchBayesian_nmr_corezzi.py               # LS fit, all datasets
-python BatchBayesian_nmr_corezzi.py EDA 25C       # LS fit, one dataset
-python BatchBayesian_nmr_corezzi.py --mcmc        # LS + MCMC, all datasets
-python BatchBayesian_nmr_corezzi.py --mcmc EDA 25C
-```
-
-Outputs: `fit_results_nmr/corezzi_results.csv`. Datasets missing from `t2_alpha_fits.csv` are skipped automatically.
-
----
-
-### `BatchBayesian_fixedr_kuro.py` — Full MCMC for DSC and NMR (fixed r, from `.mat`)
-
-The primary kinetic fitting script for the existing dataset. r is fixed at max(α) per dataset (not stoichiometric).
+The primary kinetic fitting scripts for the existing DSC dataset. r is fixed at max(α) per dataset (not stoichiometric).
 
 ```bash
-python BatchBayesian_fixedr_kuro.py               # MCMC, all DSC + NMR datasets
-python BatchBayesian_fixedr_kuro.py NMR EDA 25    # MCMC, one dataset (temp as integer)
-python BatchBayesian_fixedr_kuro.py NMR EDA 25 --grid_scan   # posterior grid scan first
+python fit_kuro_fixedr.py               # MCMC, all DSC + NMR datasets
+python fit_kuro_fixedr.py NMR EDA 25    # MCMC, one dataset (temp as integer)
+python fit_kuro_fixedr.py NMR EDA 25 --grid_scan   # posterior grid scan first
 ```
 
 Outputs: `mcmc_samples/`, `fit_results/fixed_r/`.
 
 ---
 
-### `BatchBayesian_plots.py` — Plot MCMC chains from saved `.npz` files
+### `plot_mcmc.py` — Post-process MCMC chains from saved `.npz` files
+
+Generates posterior overlay, α(t) CI band, dα/dt vs α, chain trace, and corner plots, plus a summary grid image. Appends a row to `posterior_summary.csv` (written before plots so results survive a crash). Intended to run locally after transferring results from the cluster via rsync.
 
 ```bash
-python BatchBayesian_plots.py                          # process all files in mcmc_samples/
-python BatchBayesian_plots.py mcmc_samples/NMR_EDA_25C_fitdata.npz   # one file
-python BatchBayesian_plots.py --burnin 5000 --stride 5               # override mcmc_config
+python plot_mcmc.py                                        # all files in mcmc_samples/
+python plot_mcmc.py path/to/file_fitdata.npz               # single file
+python plot_mcmc.py --r 2.0 --input-dir mcmc_samples_nmr --outdir fit_plots_nmr --summary posterior_summary_nmr.csv
+python plot_mcmc.py --burnin 5000 --stride 5               # override mcmc_config
 ```
+
+Only processes `.npz` files directly in `--input-dir` — does not recurse into subdirectories.
+
+**r flag:** use `--r 2.0` for NMR/KM data (stoichiometric ratio). Without it, defaults to `max(a_data)` for DSC data.
 
 ---
 
@@ -235,10 +227,10 @@ squeue -u tkmeldrum --start   # check estimated start time
 
 ### `final_results_to_plots.py` — Arrhenius analysis and parameter trend plots
 
-Reads a posterior summary CSV and produces two PDFs:
+Reads a posterior summary CSV and produces two PDFs saved to `results/`:
 
-1. **`fit_trends_{timestamp}.pdf`** — all KM parameters (k₁, k₂, m, n, r) vs 1/T for each sample and method, with error bars from posterior CIs.
-2. **`arrhenius_fits_{timestamp}.pdf`** — ln(k₁) and ln(k₂) vs 1/T with linear fits and printed activation energies (Ea ± uncertainty in kJ/mol).
+1. **`results/fit_trends_{timestamp}.pdf`** — all KM parameters (k₁, k₂, m, n, r) vs 1/T for each sample and method, with error bars from posterior CIs.
+2. **`results/arrhenius_fits_{timestamp}.pdf`** — ln(k₁) and ln(k₂) vs 1/T with linear fits and printed activation energies (Ea ± uncertainty in kJ/mol).
 
 ```bash
 python final_results_to_plots.py                              # uses posterior_summary.csv
