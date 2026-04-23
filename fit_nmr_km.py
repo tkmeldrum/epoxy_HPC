@@ -309,6 +309,7 @@ def process_single(sample, temp, do_mcmc=False):
     row = {
         "sample": sample, "temp": temp,
         "k1": k1, "k2": k2, "m": m, "n": n,
+        "r_value": R, "r_treatment": "fixed_stoichiometric",
         "rss": rss, "converged": converged,
     }
 

@@ -65,7 +65,7 @@ nmr_index = {
 mat = loadmat('epoxy_data_13Mar2026.mat')
 
 try:
-    fit_csv = pd.read_csv("fit_results/fixed_r/combined_results.csv", engine='python')
+    fit_csv = pd.read_csv("fit_results/combined_results.csv", engine='python')
     fit_csv = fit_csv.copy(deep=True)  # ensure safe read-only behavior
 except Exception as e:
     print(f"[Warning] Could not load combined_results.csv for initial guesses: {e}")
@@ -74,19 +74,20 @@ except Exception as e:
 def ode_rhs(t, a, log_k1, log_k2, m, n, r, eps=1e-10):
     k1 = 10 ** log_k1
     k2 = 10 ** log_k2
-    a = np.clip(a, eps, r - eps)
+    # alpha is physically bounded by 1; upper clip is min(r, 1) regardless of r
+    a = np.clip(a, eps, min(r, 1.0) - eps)
     return (k1 + k2 * a**m) * (1 - a)**(n/2) * (r - a)**(n/2)
 
 def solve_model(log_k1, log_k2, m, n, r, t_data, a_data, eps=1e-10):
     try:
-        a0 = np.clip(a_data[0], eps, r - eps)
+        a0 = np.clip(a_data[0], eps, min(r, 1.0) - eps)
         sol = solve_ivp(ode_rhs, [t_data[0], t_data[-1]], [a0], t_eval=t_data,
                         args=(log_k1, log_k2, m, n, r), method='LSODA',
                         rtol=1e-8, atol=1e-10)
         if not sol.success or not np.all(np.isfinite(sol.y)):
             log_debug(f"[ODE FAIL] success={sol.success}, finite={np.all(np.isfinite(sol.y))}, log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r}, a0={a0}, t_span=({t_data[0]}, {t_data[-1]})\n")
             return np.full_like(t_data, np.nan)
-        return np.clip(sol.y[0], 1e-8, r - 1e-8)
+        return np.clip(sol.y[0], 1e-8, min(r, 1.0) - 1e-8)
     except Exception as e:
         log_debug(f"[SOLVE EXCEPTION] log_k1={log_k1}, log_k2={log_k2}, m={m}, n={n}, r={r} => {e}\n")
         return np.full_like(t_data, np.nan)
@@ -112,7 +113,7 @@ def log_likelihood(params, t_data, a_data, r):
 
     try:
         a_fit = solve_model(log_k1, log_k2, m, n, r, t_data, a_data)
-        a_fit = np.clip(a_fit, 1e-8, r - 1e-8)
+        a_fit = np.clip(a_fit, 1e-8, min(r, 1.0) - 1e-8)
     except Exception as e:
         log_debug(f"[SOLVE EXCEPTION] {params} => {e}\n")
         return -np.inf
@@ -395,6 +396,7 @@ def process_single(task):
         return None
 
     r = np.max(a_data)
+    # r = 2.0  # Fixed r for all fits, as per new plan
     start = None
     scale_params = None
 
@@ -406,7 +408,7 @@ def process_single(task):
         try:
             log_k1_vals = np.linspace(-10, 0, 100)
             log_k2_vals = np.linspace(-10, 0, 100)
-            fixed_params = [0.4, 1.6, -3.0]  # m, n, log_sigma guess — replace if needed
+            fixed_params = [1.0, 1.4, -3.0]  # m, n, log_sigma guess
             start = scan_log_posterior_grid(log_k1_vals, log_k2_vals, fixed_params, t_data, a_data, r, method, sample, temp)
             np.save(grid_param_file, start)
             scale_params = np.array([0.2, 0.2, 0.05, 0.05, 0.05])
@@ -487,7 +489,9 @@ def process_single(task):
         summary[f"{name}_lower"] = np.percentile(vals, 2.5)
         summary[f"{name}_upper"] = np.percentile(vals, 97.5)
 
-    return {"Method": method, "Sample": sample, "Temp_C": temp, **summary}
+    return {"Method": method, "Sample": sample, "Temp_C": temp,
+            "r_value": r, "r_treatment": "fixed_stoichiometric",
+            **summary}
 
 if __name__ == "__main__":
     freeze_support()
@@ -522,6 +526,7 @@ if __name__ == "__main__":
         t_data = t_data - t_data[0]
         a_data = np.clip(a_data, 1e-8, 1 - 1e-8)
         r = np.max(a_data)
+        # r = 2.0  # Fixed r for all fits, as per new plan
 
         # Define grid and fixed parameters
         log_k1_vals = np.linspace(-6, -3, 100)
@@ -542,7 +547,7 @@ if __name__ == "__main__":
         # DAP2 is NMR-only — skip DSC for that sample
         tasks = [(method, sample, temp)
                  for sample in samples_list
-                 for method, temps in [('DSC', dsc_temps), ('NMR', nmr_temps)]
+                 for method, temps in [('DSC', dsc_temps), ('NMR', nmr_temps)] 
                  for temp in temps
                  if not (sample == 'DAP2' and method == 'DSC')]
 
@@ -553,5 +558,7 @@ if __name__ == "__main__":
                 all_results.append(result)
 
         results_df = pd.DataFrame(all_results)
-        results_df.to_csv('parameter_estimates.csv', index=False)
-        print("All results saved to parameter_estimates.csv")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        out_path = f"{output_dir}/parameter_estimates_{timestamp}.csv"
+        results_df.to_csv(out_path, index=False)
+        print(f"All results saved to {out_path}")
