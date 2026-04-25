@@ -244,8 +244,8 @@ def write_provenance(script_path, datasets, source_paths):
 
 # ── Save figure ───────────────────────────────────────────────────────────────
 def savefig(fig, name, dpi=FIG_DPI):
-    os.makedirs(_FIGURES, exist_ok=True)
     base = os.path.join(_FIGURES, name)
+    os.makedirs(os.path.dirname(base), exist_ok=True)
     fig.savefig(base + '.pdf', bbox_inches='tight')
     fig.savefig(base + '.png', dpi=dpi, bbox_inches='tight')
     print(f'Saved: {base}.pdf / .png')

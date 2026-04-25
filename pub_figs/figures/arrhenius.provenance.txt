@@ -1,0 +1,18 @@
+PROVENANCE RECORD
+Generated : 2026-04-24 15:18:21
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/arrhenius.py
+
+DATASETS USED
+  Posterior summaries — samples: EDA, DAP, DAB; methods: DSC, NMR, NMR2; all temperatures
+
+SOURCE FILES
+  posterior_summary_DSC.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_DSC.csv
+    modified: 2026-04-20 15:51:50
+    size    : 6694 bytes
+    md5     : 562fc09ddedb74a35101415020bce7c7
+  posterior_summary_NMR_28Mar.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_28Mar.csv
+    modified: 2026-04-20 15:51:50
+    size    : 3838 bytes
+    md5     : c3b1368a05eb662132a11bdc330a6690

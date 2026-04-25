@@ -54,14 +54,13 @@ def main():
         r'1,4-diaminobutane (DAB). Reported values are posterior medians; '
         r'uncertainties represent the 95\% credible intervals from the '
         r'Bayesian analysis. For DSC, $r$ is a free parameter per temperature '
-        r'(equal to $\alpha_\infty$); for NMR, $r = 2.0$ is fixed by '
-        r'stoichiometry.$^\dagger$}',
+        r'(equal to $\alpha_\infty$).}',
         r'\label{tab:KM_with_r}',
         r'    \centering',
         r'    \begin{tabular}{c|cc ccccc}',
         r'        Sample & Method & Temp ($^\circ$C) & '
         r'$k_1/10^{-6}$ [s$^{-1}$] & $k_2/10^{-3}$ [s$^{-1}$] & '
-        r'$m$ & $n$ & $r$ \\ \midrule',
+        r'$m$ & $n$ & $r$$^\ddagger$ \\ \midrule',
     ]
 
     for si, sample in enumerate(SAMPLE_ORDER):
@@ -91,27 +90,31 @@ def main():
 
         lines.append(r'        \cline{2-8}')
 
-        # NMR rows (original run, Method='NMR')
-        for ti, temp in enumerate(NMR_TEMPS):
-            row = get_row(df, 'NMR', sample, temp)
-            if row is None:
-                continue
-            k1 = fmt_k(row['log_k1_median'], row['log_k1_CI_lower'],
-                       row['log_k1_CI_upper'], -6)
-            k2 = fmt_k(row['log_k2_median'], row['log_k2_CI_lower'],
-                       row['log_k2_CI_upper'], -3)
-            m      = fmt_val(row['m_median'], row['m_CI_lower'], row['m_CI_upper'])
-            n      = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
-            r_cell = r'\num{2.0}$^\ddagger$'
-
-            prefix = rf'\multirow{{3}}{{*}}{{NMR}} & ' if ti == 0 else r'~ & '
-            lines.append(f'        ~ & {prefix}{temp} & {k1} & {k2} & {m} & {n} & {r_cell} \\\\')
-
-        # NMR2 (DAP2 → DAP only)
         if sample == 'DAP':
-            lines.append(r'        \cline{2-8}')
+            # Group by temperature: 2 rows per temp (NMR then NMR2), no per-run labels
+            nmr_n = len(NMR_TEMPS) * 2
             for ti, temp in enumerate(NMR_TEMPS):
-                row = get_row(df, 'NMR2', sample, temp)
+                for ri, method in enumerate(['NMR', 'NMR2']):
+                    row = get_row(df, method, sample, temp)
+                    if row is None:
+                        continue
+                    k1 = fmt_k(row['log_k1_median'], row['log_k1_CI_lower'],
+                               row['log_k1_CI_upper'], -6)
+                    k2 = fmt_k(row['log_k2_median'], row['log_k2_CI_lower'],
+                               row['log_k2_CI_upper'], -3)
+                    m  = fmt_val(row['m_median'], row['m_CI_lower'], row['m_CI_upper'])
+                    n  = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
+                    r_cell = r'2'
+                    meth_prefix = (rf'\multirow{{{nmr_n}}}{{*}}{{NMR}} & '
+                                   if (ti == 0 and ri == 0) else r'~ & ')
+                    temp_prefix = (rf'\multirow{{2}}{{*}}{{{temp}}} & '
+                                   if ri == 0 else r'~ & ')
+                    lines.append(f'        ~ & {meth_prefix}{temp_prefix}'
+                                 f'{k1} & {k2} & {m} & {n} & {r_cell} \\\\')
+        else:
+            # Non-DAP: standard NMR block
+            for ti, temp in enumerate(NMR_TEMPS):
+                row = get_row(df, 'NMR', sample, temp)
                 if row is None:
                     continue
                 k1 = fmt_k(row['log_k1_median'], row['log_k1_CI_lower'],
@@ -120,8 +123,8 @@ def main():
                            row['log_k2_CI_upper'], -3)
                 m      = fmt_val(row['m_median'], row['m_CI_lower'], row['m_CI_upper'])
                 n      = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
-                r_cell = r'\num{2.0}$^\ddagger$'
-                prefix = rf'\multirow{{3}}{{*}}{{NMR (2026)}} & ' if ti == 0 else r'~ & '
+                r_cell = r'2'
+                prefix = rf'\multirow{{3}}{{*}}{{NMR}} & ' if ti == 0 else r'~ & '
                 lines.append(f'        ~ & {prefix}{temp} & {k1} & {k2} & {m} & {n} & {r_cell} \\\\')
 
         if si < len(SAMPLE_ORDER) - 1:
@@ -129,10 +132,9 @@ def main():
 
     lines += [
         r'    \end{tabular}',
-        r'    \footnotesize{$^\dagger$NMR fits use $r = 2.0$ fixed by '
+        r'    \footnotesize{$^\ddagger$NMR fits use $r = 2$ fixed by '
         r'stoichiometry ($[\mathrm{H}_0]/[\mathrm{E}_0]$) and are not '
-        r'estimated from the data.}\\',
-        r'    \footnotesize{$^\ddagger$See text; \num{2.0} (fixed).}',
+        r'estimated from the data.}',
         r'\end{table}',
         r'\end{landscape}',
     ]
