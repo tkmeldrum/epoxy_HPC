@@ -1,10 +1,30 @@
 """Generate all SI figures and the master si_figures.tex.
 
-Produces:
-  pub_figs/figures/SI_figures/cpmg_fit_{sample}_{temp}.pdf/.png  (15 figures)
-  pub_figs/figures/SI_figures/rep_DSC_{sample}_{temp}.pdf/.png   (18 figures)
-  pub_figs/figures/SI_figures/rep_NMR_{sample}_{temp}.pdf/.png   (12 figures)
-  pub_figs/figures/si_figures.tex                                (master SI LaTeX)
+Usage
+-----
+From the repo root (epoxy_HPC/):
+
+    conda run -n python_coding python pub_figs/make_si.py
+
+Or from pub_figs/:
+
+    conda run -n python_coding python make_si.py
+
+What it produces
+----------------
+  figures/SI_figures/cpmg_fit_{sample}_{temp}.pdf/.png   (12 figures)
+  figures/SI_figures/rep_DSC_{sample}_{temp}.pdf/.png    (18 figures)
+  figures/SI_figures/rep_NMR_{sample}_{temp}.pdf/.png     (9 figures)
+  figures/SI_figures/rep_NMR2_{sample}_{temp}.pdf/.png    (3 replicate figures)
+  figures/si_figures.tex                                 (master SI LaTeX, ready to \\input)
+  figures/make_si.provenance.txt                         (MD5/mtime of all source files)
+
+The si_figures.tex file uses absolute paths for \\includegraphics and ends with
+\\input{...table_km.tex} (also absolute). To include it in your main document:
+
+    \\input{/full/path/to/pub_figs/figures/si_figures.tex}
+
+Re-run this script any time the posteriors or raw data change.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
@@ -49,11 +69,13 @@ def _cap_rep(method, sample, temp, replicate=False):
     )
 
 # ── LaTeX figure environment builder ──────────────────────────────────────────
+_FIGURES_ABS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'figures')
+
 def _fig_env(stem, caption, label):
-    fname = os.path.basename(stem)
+    abspath = os.path.join(_FIGURES_ABS, stem) + '.pdf'
     return '\n'.join([
         r'\begin{figure}[!ht]',
-        rf'  \includegraphics[width=\linewidth]{{SI_figures/{fname}.pdf}}',
+        rf'  \includegraphics[width=\linewidth]{{{abspath}}}',
         rf'  \caption{{{caption}}}',
         rf'  \label{{{label}}}',
         r'\end{figure}',
@@ -118,7 +140,8 @@ def main():
     # ── Section 4: KM parameter table ─────────────────────────────────────────
     tex_blocks.append(r'\subsection*{Kamal-Malkin Fit Parameters}')
     tex_blocks.append('')
-    tex_blocks.append(r'\input{table_km.tex}')
+    table_km_abs = os.path.join(_FIGURES_ABS, 'table_km.tex')
+    tex_blocks.append(rf'\input{{{table_km_abs}}}')
     tex_blocks.append('')
 
     # ── Write si_figures.tex ───────────────────────────────────────────────────
