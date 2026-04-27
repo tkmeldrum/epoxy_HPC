@@ -145,18 +145,16 @@ def load_dsc_raw(sample, temp_str):
 def solve_km(k1, k2, m, n, r, t_eval_min, a0=1e-10):
     """Solve KM ODE; t_eval_min in minutes → return alpha array.
 
-    k1, k2 are linear rate constants (s⁻¹); converted to log10 internally.
+    k1, k2 are linear rate constants (s⁻¹).
     Uses a local RHS wrapper that clamps (1−α) ≥ 0 before the fractional
     power, preventing NaN when α overshoots 1.0 during integration (NMR r=2).
     """
-    log_k1 = np.log10(k1)
-    log_k2 = np.log10(k2)
-    t_sec  = t_eval_min * 60.0
+    t_sec = t_eval_min * 60.0
 
     def _rhs(t, a):
         a_c  = np.clip(a, 1e-10, r - 1e-10)
         epox = np.maximum(0.0, 1.0 - a_c)    # zero rate once α ≥ 1
-        return ((10**log_k1 + 10**log_k2 * a_c**m)
+        return ((k1 + k2 * a_c**m)
                 * epox**(n / 2)
                 * (r - a_c)**(n / 2))
 

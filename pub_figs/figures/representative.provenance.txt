@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-04-24 17:26:38
+Generated : 2026-04-27 12:45:21
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/representative.py
 
 DATASETS USED

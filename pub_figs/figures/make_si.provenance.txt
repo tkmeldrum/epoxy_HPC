@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-04-24 20:57:58
+Generated : 2026-04-27 12:45:36
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/make_si.py
 
 DATASETS USED
