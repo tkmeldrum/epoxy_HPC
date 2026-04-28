@@ -47,6 +47,7 @@ def make_cpmg_figure(sample, temp_str, stem=None):
                  fmt='o', ms=4, color='k', mfc='k',
                  capsize=3, lw=0.8, elinewidth=0.8)
     ax2.set_ylabel(r'$\beta$')
+    ax2.set_ylim(bottom=0)
     ax2.set_xlabel('Elapsed time (min)')
 
     pu.savefig(fig, stem)

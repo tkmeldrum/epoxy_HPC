@@ -65,7 +65,7 @@ def _cap_rep(method, sample, temp, replicate=False):
         rf'Kamal-Malkin model fit to {method} cure data for '
         rf'DGEBA/{FULL_NAMES[sample]} at {temp}\,\textdegree C{rep}. '
         r'Left: conversion $\alpha(t)$; shaded band is the 95\% credible interval. '
-        r'Right: reaction rate $\mathrm{d}\alpha/\mathrm{d}t$ vs.\ conversion $\alpha$.'
+        r'Right: reaction rate $\mathrm{d}\alpha(t)/\mathrm{d}t$ vs.\ $\alpha$.'
     )
 
 # ── LaTeX figure environment builder ──────────────────────────────────────────
@@ -75,7 +75,8 @@ def _fig_env(stem, caption, label):
     abspath = os.path.join(_FIGURES_ABS, stem) + '.pdf'
     return '\n'.join([
         r'\begin{figure}[!ht]',
-        rf'  \includegraphics[width=\linewidth]{{{abspath}}}',
+        r'  \centering',
+        rf'  \includegraphics[width=0.5\linewidth]{{{abspath}}}',
         rf'  \caption{{{caption}}}',
         rf'  \label{{{label}}}',
         r'\end{figure}',
@@ -92,7 +93,8 @@ def main():
     tex_blocks = []
 
     # ── Section 1: CPMG relaxation parameters ─────────────────────────────────
-    tex_blocks.append(r'\subsection*{CPMG Relaxation Parameters}')
+    tex_blocks.append(r'\clearpage')
+    tex_blocks.append(r'\section{CPMG Relaxation Parameters}')
     tex_blocks.append('')
 
     for sample, temp, replicate in CPMG_SETS:
@@ -106,7 +108,8 @@ def main():
         tex_blocks.append('')
 
     # ── Section 2: Representative DSC fits ────────────────────────────────────
-    tex_blocks.append(r'\subsection*{Representative DSC Fits}')
+    tex_blocks.append(r'\clearpage')
+    tex_blocks.append(r'\section{Representative DSC Fits}')
     tex_blocks.append('')
 
     for sample, temp in DSC_SETS:
@@ -118,7 +121,8 @@ def main():
         tex_blocks.append('')
 
     # ── Section 3: Representative NMR fits ────────────────────────────────────
-    tex_blocks.append(r'\subsection*{Representative NMR Fits}')
+    tex_blocks.append(r'\clearpage')
+    tex_blocks.append(r'\section{Representative NMR Fits}')
     tex_blocks.append('')
 
     for sample, temp in NMR_SETS:
@@ -138,7 +142,8 @@ def main():
         tex_blocks.append('')
 
     # ── Section 4: KM parameter table ─────────────────────────────────────────
-    tex_blocks.append(r'\subsection*{Kamal-Malkin Fit Parameters}')
+    tex_blocks.append(r'\clearpage')
+    tex_blocks.append(r'\section{Kamal-Malkin Fit Parameters}')
     tex_blocks.append('')
     table_km_abs = os.path.join(_FIGURES_ABS, 'table_km.tex')
     tex_blocks.append(rf'\input{{{table_km_abs}}}')

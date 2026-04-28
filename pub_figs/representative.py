@@ -131,7 +131,7 @@ def make_rep_figure(df, sample, temp_str, temp_c, method, stem=None):
     ax_a.plot(t_model, a_med, color=FIT_COLOR, lw=FIT_LW,
               label='KM median', zorder=4)
     ax_a.set_xlim(0, t_max)
-    ax_a.set_ylim(bottom=-0.05)
+    ax_a.set_ylim(bottom=0)
     ax_a.set_ylabel(r'$\alpha$')
     ax_a.set_xlabel('time (min)')
     ax_a.legend(frameon=False, fontsize=7, loc='lower right')
@@ -199,7 +199,7 @@ def main():
         ax_a.plot(t_model, a_med, color=FIT_COLOR, lw=FIT_LW,
                   label='KM median', zorder=4)
         ax_a.set_xlim(xlim)
-        ax_a.set_ylim(bottom=-0.05)
+        ax_a.set_ylim(bottom=0)
         ax_a.set_xticks(x_ticks)
         ax_a.set_ylabel(r'$\alpha$')
         if ri == 1:

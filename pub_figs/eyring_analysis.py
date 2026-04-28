@@ -90,6 +90,9 @@ _HERE           = os.path.dirname(os.path.abspath(__file__))
 LATEX_TABLE_OUT = os.path.normpath(
     os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_table.tex')
 )
+LATEX_EA_ONLY_OUT = os.path.normpath(
+    os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_only_table.tex')
+)
 
 
 # ── Core Eyring regression ─────────────────────────────────────────────────────
@@ -325,6 +328,60 @@ def write_latex_table(results_ea, results_eyring):
     print(f'LaTeX table: {LATEX_TABLE_OUT}')
 
 
+def write_ea_only_table(results_ea):
+    """Write Ea_only_table.tex: Ea1 and Ea2 for DSC and NMR, no TST parameters."""
+    def ea_cell(r):
+        return _fmt(r[0], r[1]) if r else r'---'
+
+    lines = [
+        r'\begin{table}[!ht]',
+        (r'\caption{Arrhenius activation energies $E_{a,1}$ and $E_{a,2}$ from'
+         r' Kamal-Malkin rate constants $k_1$ and $k_2$ for DGEBA cured with'
+         r' ethylenediamine (EDA), 1,3-diaminopropane (DAP), and'
+         r' 1,4-diaminobutane (DAB). Energies in kJ\,mol$^{-1}$.'
+         r' Values are median $\pm$ half-width of the 95\,\% credible interval.'
+         r' DSC columns use \qtylist[list-units=single]{25;33;50;60;80;100}{\celsius};'
+         r' NMR columns use only \qtylist[list-units=single]{25;33;40}{\celsius}'
+         r' and carry larger uncertainties.}'),
+        r'\label{tab:Ea_only}',
+        r'    \centering',
+        r'    \begin{tabular}{c|cc|cc}',
+        (r'        \multirow{2}{*}{Sample}'
+         r' & \multicolumn{2}{c|}{$E_{a,1}$ (kJ\,mol$^{-1}$)}'
+         r' & \multicolumn{2}{c}{$E_{a,2}$ (kJ\,mol$^{-1}$)} \\'),
+        r'        & DSC & NMR & DSC & NMR \\ \midrule',
+    ]
+
+    for si, sample in enumerate(SAMPLES):
+        last_row = (si == len(SAMPLES) - 1)
+        ea1_dsc = results_ea.get('DSC', {}).get(sample, {}).get('lnk1')
+        ea1_nmr = results_ea.get('NMR', {}).get(sample, {}).get('lnk1')
+        ea2_dsc = results_ea.get('DSC', {}).get(sample, {}).get('lnk2')
+        ea2_nmr = results_ea.get('NMR', {}).get(sample, {}).get('lnk2')
+
+        cells = [
+            rf'        {sample}',
+            ea_cell(ea1_dsc),
+            ea_cell(ea1_nmr),
+            ea_cell(ea2_dsc),
+            ea_cell(ea2_nmr),
+        ]
+        terminator = r' \\' if last_row else r' \\ \midrule'
+        lines.append(' & '.join(cells) + terminator)
+
+    lines += [
+        r'    \end{tabular}',
+        r'\end{table}',
+    ]
+
+    dest_dir = os.path.dirname(LATEX_EA_ONLY_OUT)
+    if dest_dir:
+        os.makedirs(dest_dir, exist_ok=True)
+    with open(LATEX_EA_ONLY_OUT, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    print(f'LaTeX Ea-only table: {LATEX_EA_ONLY_OUT}')
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     plt.rcParams.update({
@@ -369,6 +426,7 @@ def main():
 
     # ── LaTeX table ───────────────────────────────────────────────────────────
     write_latex_table(results_ea, results_eyring)
+    write_ea_only_table(results_ea)
 
     pu.write_provenance(
         __file__,
