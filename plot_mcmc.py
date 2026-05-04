@@ -15,6 +15,7 @@ Usage:
 import os
 import csv
 import time
+import hashlib
 import traceback
 import argparse
 from datetime import datetime
@@ -34,6 +35,53 @@ from mcmc_config import (
     burnin as default_burnin,
     stride as default_stride,
 )
+
+
+# ---------------------------------------------------------------------------
+# Provenance
+# ---------------------------------------------------------------------------
+
+def _md5(path):
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+def write_provenance(script_path, summary_path, npz_files):
+    """Write a provenance record alongside the posterior summary CSV."""
+    stem = os.path.splitext(os.path.abspath(summary_path))[0]
+    out  = stem + '.provenance.txt'
+    now  = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    lines = [
+        'PROVENANCE RECORD',
+        f'Generated : {now}',
+        f'Script    : {os.path.abspath(script_path)}',
+        f'Output    : {os.path.abspath(summary_path)}',
+        '',
+        'SOURCE FILES (MCMC chains)',
+    ]
+    for p in sorted(npz_files):
+        p = os.path.abspath(p)
+        if os.path.isfile(p):
+            mtime = datetime.fromtimestamp(os.path.getmtime(p)).strftime('%Y-%m-%d %H:%M:%S')
+            size  = os.path.getsize(p)
+            md5   = _md5(p)
+        else:
+            mtime, size, md5 = 'FILE NOT FOUND', '', ''
+        lines += [
+            f'  {os.path.basename(p)}',
+            f'    path    : {p}',
+            f'    modified: {mtime}',
+            f'    size    : {size} bytes' if size != '' else '    size    : —',
+            f'    md5     : {md5}',
+        ]
+    lines.append('')
+
+    with open(out, 'w') as f:
+        f.write('\n'.join(lines))
+    print(f'Provenance: {out}')
 
 
 # ---------------------------------------------------------------------------
@@ -483,9 +531,12 @@ if __name__ == "__main__":
                 stride=stride,
             )
 
+        processed_files = []
+
         def process_file_safe(file_path):
             try:
                 process_file(file_path)
+                processed_files.append(file_path)
             except Exception:
                 print(f"Failed to process {file_path}:")
                 traceback.print_exc()
@@ -500,6 +551,9 @@ if __name__ == "__main__":
         else:
             for file_path in load_npz_files(args.input_dir):
                 process_file_safe(file_path)
+
+        if processed_files:
+            write_provenance(__file__, args.summary, processed_files)
 
     except Exception:
         print("An error occurred during setup:")

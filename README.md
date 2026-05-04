@@ -102,7 +102,7 @@ Fits the NMR-derived α(t) curves to the Kamal-Malkin ODE:
 dα/dt = (k1 + k2·α^m) · (1-α)^(n/2) · (r-α)^(n/2)
 ```
 
-**r = 2.0 fixed** by stoichiometry for all samples. Time is converted from minutes to **seconds** before fitting so that k1 and k2 are in s⁻¹, consistent with DSC-derived parameters in `fit_results/combined_results.csv`.
+**⚠️ Deprecated for publication use.** This script fixes r = 2.0 (stoichiometric ratio), but r in the KM model represents limiting conversion (α_∞), not stoichiometry. Fixing r = 2.0 inflates k₁/k₂ posterior uncertainties because the model is constrained to a physically incorrect asymptote. Use `fit_kuro_fixedr.py NMR <sample> <temp>` instead, which sets r = max(α_data) per dataset. Time is converted from minutes to **seconds** before fitting so that k1 and k2 are in s⁻¹, consistent with DSC-derived parameters in `fit_results/combined_results.csv`.
 
 Parameters: `[log_k1, log_k2, m, n, log_sigma]` (5 free). Fitting uses Nelder-Mead least-squares; optional MCMC via `--mcmc` flag (emcee, 64 walkers). Outputs: `fit_results_nmr/km_results.csv`. Per-dataset plots (data + fit + annotated parameters) saved to `fit_plots_nmr/`. MCMC chains saved to `mcmc_samples_nmr/` as `*_fitdata.npz` for post-processing with `plot_mcmc.py`.
 
@@ -168,7 +168,7 @@ Outputs: `fit_results_nmr/km_results.csv`, per-dataset LS plots in `fit_plots_nm
 
 ### `fit_kuro.py` / `fit_kuro_fixedr.py` — Full MCMC for DSC and NMR (fixed r, from `.mat`)
 
-The primary kinetic fitting scripts for the existing DSC dataset. r is fixed at max(α) per dataset (not stoichiometric).
+The primary kinetic fitting scripts. r is fixed at max(α) per dataset — the observed limiting conversion, not the stoichiometric ratio. **Use `fit_kuro_fixedr.py` for all NMR publication fits** (replaces `fit_nmr_km.py`).
 
 ```bash
 python fit_kuro_fixedr.py               # MCMC, all DSC + NMR datasets
@@ -176,7 +176,9 @@ python fit_kuro_fixedr.py NMR EDA 25    # MCMC, one dataset (temp as integer)
 python fit_kuro_fixedr.py NMR EDA 25 --grid_scan   # posterior grid scan first
 ```
 
-Outputs: `mcmc_samples/`, `fit_results/fixed_r/`.
+Outputs: `mcmc_samples/`, `fit_results/fixed_r/`. Chain files are named `NMR_EDA_25C_fitdata.npz` etc. and are post-processed with `plot_mcmc.py` to generate the posterior summary CSV.
+
+**Note:** `r_treatment` in the output CSV is labelled `"fixed_stoichiometric"` — this is a misleading label; the value used is `np.max(a_data)`, not 2.0.
 
 ---
 
@@ -187,7 +189,7 @@ Generates posterior overlay, α(t) CI band, dα/dt vs α, chain trace, and corne
 ```bash
 python plot_mcmc.py                                        # all files in mcmc_samples/
 python plot_mcmc.py path/to/file_fitdata.npz               # single file
-python plot_mcmc.py --r 2.0 --input-dir mcmc_samples_nmr --outdir fit_plots_nmr
+python plot_mcmc.py --input-dir mcmc_samples_nmr --outdir fit_plots_nmr
 python plot_mcmc.py --burnin 5000 --stride 5               # override mcmc_config
 ```
 
@@ -195,7 +197,9 @@ Only processes `.npz` files directly in `--input-dir` — does not recurse into 
 
 **`--summary`:** defaults to `posterior_summary_{timestamp}.csv` so each run produces a uniquely named file. Pass `--summary myfile.csv` to override.
 
-**`--r`:** use `--r 2.0` for NMR/KM data (stoichiometric ratio). Without it, defaults to `max(a_data)` for DSC data.
+**`--r`:** override the r value used for ODE evaluation during plotting only (does not affect the sampled parameters or the CSV). Without it, defaults to `max(a_data)` per file. Do not pass `--r 2.0` for NMR fits — r should come from the data.
+
+**Provenance:** after processing all files, writes `<summary_stem>.provenance.txt` alongside the CSV, recording the script path, output file, and MD5/mtime of every `.npz` chain file processed.
 
 ---
 
@@ -218,6 +222,30 @@ mkdir -p logs
 nohup ./run_corezzi_all.sh > logs/corezzi_overnight.log 2>&1 &
 tail -f logs/corezzi_overnight.log   # monitor progress
 ```
+
+---
+
+### `epoxy_NMR_mcmc.sh` — SLURM array job: NMR KM fits with r = max(α) (bora)
+
+Submits all 12 NMR Kamal-Malkin MCMC fits as a 12-element SLURM array using `fit_kuro_fixedr.py`. r is fixed to `max(α_data)` per dataset — the observed limiting conversion, not the stoichiometric ratio.
+
+```bash
+mkdir -p /sciclone/home/tkmeldrum/epoxy_kinetics/logs
+sbatch epoxy_NMR_mcmc.sh
+squeue -u tkmeldrum --start   # check estimated start time
+```
+
+Each array task runs three steps sequentially: MCMC fit → `MCMC_diagnostics.py` → `plot_mcmc.py` (per-task CSV to avoid concurrent-append races). Submit both jobs together using SLURM dependency:
+
+```bash
+mkdir -p /sciclone/home/tkmeldrum/epoxy_kinetics/logs
+FITJOB=$(sbatch --parsable epoxy_NMR_mcmc.sh)
+sbatch --dependency=afterok:$FITJOB epoxy_NMR_postprocess.sh
+```
+
+`epoxy_NMR_postprocess.sh` re-processes all 12 `.npz` files together via `plot_mcmc.py`, writing the final `posterior_summary_NMR_fixedr.csv` and `posterior_summary_NMR_fixedr.provenance.txt`.
+
+**Before submitting:** ensure `local_config.py` on the cluster has `N_WORKERS = 20`.
 
 ---
 
