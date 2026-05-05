@@ -26,7 +26,7 @@ set BASE = ~/epoxy_kinetics
 # Re-process all 12 .npz files together — writes posterior_summary_NMR_fixedr.csv
 # and posterior_summary_NMR_fixedr.provenance.txt recording MD5/mtime of all chains.
 python3 $BASE/plot_mcmc.py \
-    --input-dir $BASE/mcmc_samples \
+    --input-dir $BASE/mcmc_samples_nmr \
     --outdir    $BASE/fit_plots_nmr \
     --summary   $BASE/posterior_summary_NMR_fixedr.csv
 

@@ -386,7 +386,11 @@ def process_single(task):
 
     try:
         t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
-        a_data = np.squeeze(mat[dataset_name][0, 0]['clean_alpha_unscaled'][0, ii])
+        # NMR: 'clean_alpha_unscaled' is a raw T2-based metric (range ~0–0.05),
+        # not fractional conversion. Use 'clean_alpha' (range 0–1) instead.
+        # DSC: 'clean_alpha_unscaled' is correct fractional conversion (r < 1).
+        alpha_field = 'clean_alpha' if method == 'NMR' else 'clean_alpha_unscaled'
+        a_data = np.squeeze(mat[dataset_name][0, 0][alpha_field][0, ii])
         t_data -= t_data[0]
         a_data = np.clip(a_data, 1e-6, 1 - 1e-6)
         imax = np.argmax(a_data)
@@ -476,10 +480,14 @@ def process_single(task):
     samples, chain, sampler = result
 
     label = f"{method}_{sample}_{temp}C"
-    os.makedirs("mcmc_samples", exist_ok=True)
+    # NMR chains are 5-dim (no r); DSC chains are 6-dim (r free).
+    # Keep them in separate directories so plot_mcmc.py never mixes ndim values
+    # across a single run, which would corrupt the posterior summary CSV headers.
+    samples_dir = "mcmc_samples_nmr" if method == "NMR" else "mcmc_samples"
+    os.makedirs(samples_dir, exist_ok=True)
 
-    np.savez(f"mcmc_samples/{label}_fitdata.npz", samples=samples, chain=chain, t_data=t_data, a_data=a_data, log_prob=sampler.get_log_prob())
-    with open(f"mcmc_samples/{label}_sampler.pkl", "wb") as f:
+    np.savez(f"{samples_dir}/{label}_fitdata.npz", samples=samples, chain=chain, t_data=t_data, a_data=a_data, log_prob=sampler.get_log_prob())
+    with open(f"{samples_dir}/{label}_sampler.pkl", "wb") as f:
         pickle.dump(sampler, f)
 
     summary = {}
@@ -522,7 +530,8 @@ if __name__ == "__main__":
             ii = [25, 33, 50, 60, 80, 100].index(temp)
 
         t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
-        a_data = np.squeeze(mat[dataset_name][0, 0]['clean_alpha_unscaled'][0, ii])
+        alpha_field = 'clean_alpha' if method == 'NMR' else 'clean_alpha_unscaled'
+        a_data = np.squeeze(mat[dataset_name][0, 0][alpha_field][0, ii])
         t_data = t_data - t_data[0]
         a_data = np.clip(a_data, 1e-8, 1 - 1e-8)
         r = np.max(a_data)

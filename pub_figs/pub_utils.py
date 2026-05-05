@@ -18,7 +18,7 @@ _REPO     = os.path.join(_HERE, '..')          # epoxy_HPC/
 _FIGURES  = os.path.join(_HERE, 'figures')
 
 DSC_CSV   = os.path.join(_REPO, 'posterior_summary_DSC.csv')
-NMR_CSV   = os.path.join(_REPO, 'posterior_summary_NMR_28Mar.csv')
+NMR_CSV   = os.path.join(_REPO, 'posterior_summary_NMR_fixedr.csv')
 MAT_FILE  = os.path.join(_REPO, 'epoxy_data_13Mar2026.mat')
 NMR_RAW   = os.path.join(_REPO, 'cpmg_fit_results', 'all_samples.csv')
 
@@ -60,7 +60,7 @@ def snapshot_data():
     os.makedirs(dest, exist_ok=True)
     for src, name in [
         (DSC_CSV,  'posterior_summary_DSC.csv'),
-        (NMR_CSV,  'posterior_summary_NMR_28Mar.csv'),
+        (NMR_CSV,  'posterior_summary_NMR_fixedr.csv'),
         (MAT_FILE, 'epoxy_data_13Mar2026.mat'),
         (NMR_RAW,  'all_samples.csv'),
     ]:

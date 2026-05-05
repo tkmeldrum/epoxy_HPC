@@ -36,7 +36,7 @@ python3 $BASE/fit_kuro_fixedr.py NMR $SAMPLE $TEMP
 echo "MCMC done: $LABEL at `date`"
 
 # ── Step 2: Convergence diagnostics ────────────────────────────────────────
-set NPZ = $BASE/mcmc_samples/${LABEL}_fitdata.npz
+set NPZ = $BASE/mcmc_samples_nmr/${LABEL}_fitdata.npz
 if ( -f $NPZ ) then
     python3 $BASE/MCMC_diagnostics.py $NPZ
     echo "Diagnostics done: $LABEL at `date`"

@@ -1,7 +1,7 @@
 """Generate LaTeX KM parameter table for SI.
 
 Matches structure of Epoxy-Kinetics-2025/SI/KM_with_r_table.tex.
-NMR r = 2.0 fixed (not fit); DSC r from posterior median.
+NMR r = max(α_data) fixed per dataset; DSC r from posterior median.
 DAP2 shown as NMR2 sub-block under DAP.
 """
 import sys, os, math
@@ -54,7 +54,8 @@ def main():
         r'1,4-diaminobutane (DAB). Reported values are posterior medians; '
         r'uncertainties represent the 95\% credible intervals from the '
         r'Bayesian analysis. For DSC, $r$ is a free parameter per temperature '
-        r'(equal to $\alpha_\infty$).}',
+        r'(equal to $\alpha_\infty$). For NMR, $r$ is fixed to the observed '
+        r'maximum conversion per dataset ($r = \max(\alpha_\mathrm{data})$).}',
         r'\label{tab:KM_with_r}',
         r'    \centering',
         r'    \begin{tabular}{c|cc ccccc}',
@@ -104,7 +105,9 @@ def main():
                                row['log_k2_CI_upper'], -3)
                     m  = fmt_val(row['m_median'], row['m_CI_lower'], row['m_CI_upper'])
                     n  = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
-                    r_cell = r'2'
+                    raw_sample = 'DAP2' if method == 'NMR2' else sample
+                    _, a_data = pu.load_nmr_raw(raw_sample, f'{temp}C')
+                    r_cell = f'{a_data.max():.2f}'
                     meth_prefix = (rf'\multirow{{{nmr_n}}}{{*}}{{NMR}} & '
                                    if (ti == 0 and ri == 0) else r'~ & ')
                     temp_prefix = (rf'\multirow{{2}}{{*}}{{{temp}}} & '
@@ -123,7 +126,8 @@ def main():
                            row['log_k2_CI_upper'], -3)
                 m      = fmt_val(row['m_median'], row['m_CI_lower'], row['m_CI_upper'])
                 n      = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
-                r_cell = r'2'
+                _, a_data = pu.load_nmr_raw(sample, f'{temp}C')
+                r_cell = f'{a_data.max():.2f}'
                 prefix = rf'\multirow{{3}}{{*}}{{NMR}} & ' if ti == 0 else r'~ & '
                 lines.append(f'        ~ & {prefix}{temp} & {k1} & {k2} & {m} & {n} & {r_cell} \\\\')
 
@@ -132,9 +136,10 @@ def main():
 
     lines += [
         r'    \end{tabular}',
-        r'    \footnotesize{$^\ddagger$NMR fits use $r = 2$ fixed by '
-        r'stoichiometry ($[\mathrm{H}_0]/[\mathrm{E}_0]$) and are not '
-        r'estimated from the data.}',
+        r'    \footnotesize{$^\ddagger$For DSC, $r$ is fit from the data. '
+        r'For NMR, $r$ is fixed to the observed maximum conversion '
+        r'($r = \max(\alpha_\mathrm{data}) \approx 0.95$--$1.0$) '
+        r'rather than the stoichiometric ratio.}',
         r'\end{table}',
         r'\end{landscape}',
     ]
