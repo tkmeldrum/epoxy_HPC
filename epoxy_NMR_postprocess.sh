@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:30:00
+#SBATCH --time=04:00:00
 
 # Post-processing for epoxy_NMR_mcmc.sh array job.
 # Submit with dependency so this runs only after all 12 MCMC tasks complete:

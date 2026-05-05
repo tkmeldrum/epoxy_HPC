@@ -6,7 +6,7 @@
 #SBATCH --mail-user=tkmeldrum@wm.edu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=20
 #SBATCH --time=10:00:00
 #SBATCH --array=1-12
 

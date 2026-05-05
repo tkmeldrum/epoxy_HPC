@@ -1,0 +1,11 @@
+PROVENANCE RECORD
+Generated : 2026-05-04 15:59:56
+Script    : /sciclone/home/tkmeldrum/epoxy_kinetics/plot_mcmc.py
+Output    : /sciclone/home/tkmeldrum/epoxy_kinetics/posterior_summary_parts/posterior_summary_NMR_EDA_40C.csv
+
+SOURCE FILES (MCMC chains)
+  NMR_EDA_40C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_EDA_40C_fitdata.npz
+    modified: 2026-05-04 15:57:24
+    size    : 1344002186 bytes
+    md5     : 2345b47aaf3d83abe38e4c38077f6334
