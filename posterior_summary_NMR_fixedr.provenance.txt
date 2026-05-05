@@ -1,156 +1,131 @@
 PROVENANCE RECORD
-Generated : 2026-05-04 21:23:10
+Generated : 2026-05-05 03:25:25
 Script    : /sciclone/home/tkmeldrum/epoxy_kinetics/plot_mcmc.py
 Output    : /sciclone/home/tkmeldrum/epoxy_kinetics/posterior_summary_NMR_fixedr.csv
 
 SOURCE FILES (MCMC chains)
-  DSC_DAB_100C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_100C_fitdata.npz
-    modified: 2025-09-22 23:10:38
-    size    : 453153390 bytes
-    md5     : 20533b1345e3f4f0bc93193ca478d292
-  DSC_DAB_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_25C_fitdata.npz
-    modified: 2025-09-23 00:07:46
-    size    : 453407518 bytes
-    md5     : 58dde6905715be51df97fa91feff4afa
-  DSC_DAB_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_33C_fitdata.npz
-    modified: 2025-09-22 23:06:12
-    size    : 453191374 bytes
-    md5     : dfdbb95bd2034f8a861f997cdb59e1fc
-  DSC_DAB_50C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_50C_fitdata.npz
-    modified: 2025-09-22 23:23:05
-    size    : 453288990 bytes
-    md5     : 42143a3350ec3b3b48f4317e9d1ec323
-  DSC_DAB_60C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_60C_fitdata.npz
-    modified: 2025-09-22 23:33:41
-    size    : 453296190 bytes
-    md5     : 75844549420b6418f1d0782bad1b3126
-  DSC_DAB_80C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAB_80C_fitdata.npz
-    modified: 2025-09-22 23:10:13
-    size    : 453195166 bytes
-    md5     : dad64ae70880c540de1cfab16265c4e5
-  DSC_DAP_100C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_100C_fitdata.npz
-    modified: 2025-09-22 23:05:01
-    size    : 453182446 bytes
-    md5     : 2390b3be1af14f9ac504009b7b37be57
-  DSC_DAP_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_25C_fitdata.npz
-    modified: 2025-09-22 23:17:21
-    size    : 453399294 bytes
-    md5     : de556a48a91fb483209ed1cc9d7b2418
-  DSC_DAP_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_33C_fitdata.npz
-    modified: 2025-09-22 22:53:58
-    size    : 453257214 bytes
-    md5     : 49243412f5c5fbe61641dc506a49cece
-  DSC_DAP_50C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_50C_fitdata.npz
-    modified: 2025-09-22 23:19:01
-    size    : 453362350 bytes
-    md5     : 5cd7fe63e0a829c94e01c02c4e5c9c33
-  DSC_DAP_60C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_60C_fitdata.npz
-    modified: 2025-09-22 23:27:11
-    size    : 453354270 bytes
-    md5     : 70fc2debfb4c9f5a301a42f89c1c2c0f
-  DSC_DAP_80C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_DAP_80C_fitdata.npz
-    modified: 2025-09-22 23:06:10
-    size    : 453212206 bytes
-    md5     : c3d84d0984d1eef06e02813f34de8402
-  DSC_EDA_100C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_100C_fitdata.npz
-    modified: 2025-09-22 22:31:37
-    size    : 453129038 bytes
-    md5     : 986e1897e960bde28bde8fa15eb7d8ec
-  DSC_EDA_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_25C_fitdata.npz
-    modified: 2025-09-22 23:13:20
-    size    : 453414062 bytes
-    md5     : c72e52afea43f5217a75383ad2d33042
-  DSC_EDA_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_33C_fitdata.npz
-    modified: 2025-09-22 22:40:11
-    size    : 453192494 bytes
-    md5     : ee946f8fb920afa8fdbd8d2098921743
-  DSC_EDA_50C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_50C_fitdata.npz
-    modified: 2025-09-22 23:21:20
-    size    : 453405438 bytes
-    md5     : a78d299fbf46e765ac10bd5cf3a99adb
-  DSC_EDA_60C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_60C_fitdata.npz
-    modified: 2025-09-22 23:12:49
-    size    : 453345358 bytes
-    md5     : bc27b2ba369b7e32e6871f051e06ac4a
-  DSC_EDA_80C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/DSC_EDA_80C_fitdata.npz
-    modified: 2025-09-22 22:49:01
-    size    : 453213086 bytes
-    md5     : 90e0ef17f7548f1c58a1390452ef6276
-  NMR_DAB_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAB_25C_fitdata.npz
-    modified: 2026-05-04 16:14:35
-    size    : 1344001546 bytes
-    md5     : 0f55173d7cfcb679f3dddec6ccba0b84
-  NMR_DAB_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAB_33C_fitdata.npz
-    modified: 2026-05-04 16:38:40
-    size    : 1344002016 bytes
-    md5     : 0774f99aac0fcbdcb7db837546377bf5
-  NMR_DAB_40C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAB_40C_fitdata.npz
-    modified: 2026-05-04 16:44:37
-    size    : 1344002206 bytes
-    md5     : ffe32f9c84f5cb68e7c31284c19af392
-  NMR_DAP2_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP2_25C_fitdata.npz
-    modified: 2026-05-04 16:07:08
-    size    : 1344004176 bytes
-    md5     : a1c213e9efa02902b0d4bca533ec88b2
-  NMR_DAP2_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP2_33C_fitdata.npz
-    modified: 2026-05-04 15:40:58
-    size    : 1344001686 bytes
-    md5     : eba5610ac216f882a8deb5e7ae0d8132
-  NMR_DAP2_40C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP2_40C_fitdata.npz
-    modified: 2026-05-04 16:25:21
-    size    : 1344002746 bytes
-    md5     : 506c5e6b557b88288a75b467b400f321
-  NMR_DAP_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP_25C_fitdata.npz
-    modified: 2026-05-04 16:12:08
-    size    : 1344001486 bytes
-    md5     : eb7af44f5cdf3e71db90008e4164f30b
-  NMR_DAP_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP_33C_fitdata.npz
-    modified: 2026-05-04 16:02:45
+  DAB_25C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAB_25C_km_fitdata.npz
+    modified: 2026-03-27 23:43:23
+    size    : 1344001822 bytes
+    md5     : 221cd5a62d82fcdce1d7c6099f2ef659
+  DAB_33C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAB_33C_km_fitdata.npz
+    modified: 2026-03-28 08:21:43
     size    : 1344002046 bytes
-    md5     : 0367d6df61da471e07846d063ec0f4ea
+    md5     : cad082d8eee1422b8d7196b63c6146fc
+  DAB_40C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAB_40C_km_fitdata.npz
+    modified: 2026-03-28 09:22:40
+    size    : 1344002414 bytes
+    md5     : 1269790e8ce9d1a647966b3ecd40ae5d
+  DAP2_25C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP2_25C_km_fitdata.npz
+    modified: 2026-03-27 20:59:16
+    size    : 1344002030 bytes
+    md5     : c51a28b2719726da2a5e3b3ee063602a
+  DAP2_33C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP2_33C_km_fitdata.npz
+    modified: 2026-03-27 20:58:38
+    size    : 1344001822 bytes
+    md5     : 589c1af07b31536fe0626b72e60693f0
+  DAP2_40C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP2_40C_km_fitdata.npz
+    modified: 2026-03-27 22:45:57
+    size    : 1344001806 bytes
+    md5     : cbf92ce71b117f3e7f379c45b69628ca
+  DAP_25C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP_25C_km_fitdata.npz
+    modified: 2026-03-27 19:32:21
+    size    : 1344001646 bytes
+    md5     : 26e842696fecfdb66281d996f1d51ca1
+  DAP_33C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP_33C_km_fitdata.npz
+    modified: 2026-03-27 19:42:40
+    size    : 1344001950 bytes
+    md5     : 863b825d2d0292b6b64c3613256ebaed
+  DAP_40C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/DAP_40C_km_fitdata.npz
+    modified: 2026-03-27 19:56:14
+    size    : 1344001758 bytes
+    md5     : 6567ecdabce78ad4429ea067e5734e99
+  EDA_25C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/EDA_25C_km_fitdata.npz
+    modified: 2026-03-27 18:52:44
+    size    : 1344001774 bytes
+    md5     : 1ae790b899709cdae14e339c4ccbc8cd
+  EDA_33C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/EDA_33C_km_fitdata.npz
+    modified: 2026-03-27 19:00:51
+    size    : 1344002446 bytes
+    md5     : d15440b2d4e56ec8f1c4a8d6ed587b4c
+  EDA_40C_corezzi_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/EDA_40C_corezzi_fitdata.npz
+    modified: 2026-03-28 10:40:28
+    size    : 91522484 bytes
+    md5     : 4d921c0d58b8a493c010dc22a03d2b49
+  EDA_40C_km_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/EDA_40C_km_fitdata.npz
+    modified: 2026-03-27 19:57:49
+    size    : 1344001998 bytes
+    md5     : b430d1fe9f5d758fb4f5015758f7af1b
+  NMR_DAB_25C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAB_25C_fitdata.npz
+    modified: 2026-05-05 01:58:43
+    size    : 1344001546 bytes
+    md5     : ac9dfab409ab576b3f464c27002411a0
+  NMR_DAB_33C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAB_33C_fitdata.npz
+    modified: 2026-05-05 02:36:45
+    size    : 1344002016 bytes
+    md5     : b982ef956592c65c398fcb68a0fe3954
+  NMR_DAB_40C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAB_40C_fitdata.npz
+    modified: 2026-05-05 02:22:35
+    size    : 1344002206 bytes
+    md5     : 71640c8061f4a3d13b850593ed197cb6
+  NMR_DAP2_25C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP2_25C_fitdata.npz
+    modified: 2026-05-05 01:53:55
+    size    : 1344004176 bytes
+    md5     : eda4e0087267921557e0f61ffa808013
+  NMR_DAP2_33C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP2_33C_fitdata.npz
+    modified: 2026-05-05 01:25:18
+    size    : 1344001686 bytes
+    md5     : 2d4e0c3a6028fc81951716b68529aff9
+  NMR_DAP2_40C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP2_40C_fitdata.npz
+    modified: 2026-05-05 02:22:13
+    size    : 1344002746 bytes
+    md5     : 7da78d5aaa5ea8361addf586e808bfa6
+  NMR_DAP_25C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP_25C_fitdata.npz
+    modified: 2026-05-05 02:27:14
+    size    : 1344001486 bytes
+    md5     : eb644a39dff306523e79ca46762c20a5
+  NMR_DAP_33C_fitdata.npz
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP_33C_fitdata.npz
+    modified: 2026-05-05 01:34:03
+    size    : 1344002046 bytes
+    md5     : 87571d5470b6cb11120fdf147af17c25
   NMR_DAP_40C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP_40C_fitdata.npz
-    modified: 2026-05-04 15:58:20
-    size    : 1344001766 bytes
-    md5     : 12144c902cc8722d3a506bd304643eab
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP_40C_fitdata.npz
+    modified: 2026-05-05 01:16:27
+    size    : 1344001596 bytes
+    md5     : 15c747be584a086ecaf791010703c030
   NMR_EDA_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_EDA_25C_fitdata.npz
-    modified: 2026-05-04 15:58:22
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_EDA_25C_fitdata.npz
+    modified: 2026-05-05 02:14:27
     size    : 1344001566 bytes
-    md5     : a8c4df80431a02eca490258854f4873d
+    md5     : ae88c2a823a668b6d9a21eb300515852
   NMR_EDA_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_EDA_33C_fitdata.npz
-    modified: 2026-05-04 16:43:19
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_EDA_33C_fitdata.npz
+    modified: 2026-05-05 02:56:10
     size    : 1344002216 bytes
-    md5     : 69f3e53d3579f9bc3faea4a146dac5f2
+    md5     : 689d0259120d11ea359f462e116f9e99
   NMR_EDA_40C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_EDA_40C_fitdata.npz
-    modified: 2026-05-04 15:57:24
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_EDA_40C_fitdata.npz
+    modified: 2026-05-05 01:36:46
     size    : 1344002186 bytes
-    md5     : 2345b47aaf3d83abe38e4c38077f6334
+    md5     : 08be2dc11f9498a7434b599006ba4aed

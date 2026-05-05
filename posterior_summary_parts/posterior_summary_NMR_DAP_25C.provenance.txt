@@ -1,11 +1,11 @@
 PROVENANCE RECORD
-Generated : 2026-05-04 16:14:18
+Generated : 2026-05-05 02:29:19
 Script    : /sciclone/home/tkmeldrum/epoxy_kinetics/plot_mcmc.py
 Output    : /sciclone/home/tkmeldrum/epoxy_kinetics/posterior_summary_parts/posterior_summary_NMR_DAP_25C.csv
 
 SOURCE FILES (MCMC chains)
   NMR_DAP_25C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_DAP_25C_fitdata.npz
-    modified: 2026-05-04 16:12:08
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_DAP_25C_fitdata.npz
+    modified: 2026-05-05 02:27:14
     size    : 1344001486 bytes
-    md5     : eb7af44f5cdf3e71db90008e4164f30b
+    md5     : eb644a39dff306523e79ca46762c20a5

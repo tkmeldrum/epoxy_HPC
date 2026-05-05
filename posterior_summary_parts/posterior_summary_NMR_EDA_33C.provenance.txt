@@ -1,11 +1,11 @@
 PROVENANCE RECORD
-Generated : 2026-05-04 16:45:20
+Generated : 2026-05-05 02:56:03
 Script    : /sciclone/home/tkmeldrum/epoxy_kinetics/plot_mcmc.py
 Output    : /sciclone/home/tkmeldrum/epoxy_kinetics/posterior_summary_parts/posterior_summary_NMR_EDA_33C.csv
 
 SOURCE FILES (MCMC chains)
   NMR_EDA_33C_fitdata.npz
-    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples/NMR_EDA_33C_fitdata.npz
-    modified: 2026-05-04 16:43:19
+    path    : /sciclone/home/tkmeldrum/epoxy_kinetics/mcmc_samples_nmr/NMR_EDA_33C_fitdata.npz
+    modified: 2026-05-05 02:54:07
     size    : 1344002216 bytes
-    md5     : 69f3e53d3579f9bc3faea4a146dac5f2
+    md5     : 689d0259120d11ea359f462e116f9e99
