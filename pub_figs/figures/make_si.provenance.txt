@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-05-04 21:49:13
+Generated : 2026-05-05 06:38:01
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/make_si.py
 
 DATASETS USED
@@ -19,9 +19,9 @@ SOURCE FILES
     md5     : 562fc09ddedb74a35101415020bce7c7
   posterior_summary_NMR_fixedr.csv
     path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
-    modified: 2026-05-04 21:47:32
-    size    : 3792 bytes
-    md5     : b16db442539ce9dcb348ab2fd03a4705
+    modified: 2026-05-05 06:36:26
+    size    : 7379 bytes
+    md5     : 1b9c632abde825cb73ac08f554d2caa3
   epoxy_data_13Mar2026.mat
     path    : /Users/tyler/Documents/GitHub/epoxy_HPC/epoxy_data_13Mar2026.mat
     modified: 2026-04-20 15:51:50
