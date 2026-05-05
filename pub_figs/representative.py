@@ -23,7 +23,9 @@ FIT_LW    = 2.0
 BAND_ALPHA = 0.25
 
 
-def _r_val(row, default=2.0):
+def _r_val(row, default=1.0):
+    # default=1.0: NMR posteriors have no r column (r was fixed at max(α_data)≈1.0,
+    # not sampled). DSC rows always have r_median present so the default is unused.
     v = row.get('r', np.nan)
     return default if (v is None or (isinstance(v, float) and np.isnan(v))) else v
 

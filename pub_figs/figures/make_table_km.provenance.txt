@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-05-05 06:37:45
+Generated : 2026-05-05 06:43:54
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/make_table_km.py
 
 DATASETS USED
@@ -13,6 +13,6 @@ SOURCE FILES
     md5     : 562fc09ddedb74a35101415020bce7c7
   posterior_summary_NMR_fixedr.csv
     path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
-    modified: 2026-05-05 06:36:26
-    size    : 7379 bytes
-    md5     : 1b9c632abde825cb73ac08f554d2caa3
+    modified: 2026-05-05 06:43:48
+    size    : 3802 bytes
+    md5     : a25f7f8781adf1aa12cc121c2fc52d51

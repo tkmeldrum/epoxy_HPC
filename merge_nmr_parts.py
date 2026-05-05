@@ -12,7 +12,7 @@ parts = sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__))
 if not parts:
     raise FileNotFoundError('No per-task CSVs found in posterior_summary_parts/')
 
-df = pd.concat([pd.read_csv(f) for f in parts], ignore_index=True)
+df = pd.concat([pd.read_csv(f).tail(1) for f in parts], ignore_index=True)
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    'posterior_summary_NMR_fixedr.csv')
 df.to_csv(out, index=False)
