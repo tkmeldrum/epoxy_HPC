@@ -85,6 +85,7 @@ TREF     = 298.15                  # K (25 °C reference for ΔG‡)
 
 SAMPLES = ['EDA', 'DAP', 'DAB']
 PARAMS  = [('lnk1', r'$k_1$'), ('lnk2', r'$k_2$')]
+YLIMS   = {'lnk1': (-30, 0), 'lnk2': (-20, -10)}   # ln(k_s / T) axis limits
 
 _HERE           = os.path.dirname(os.path.abspath(__file__))
 LATEX_TABLE_OUT = os.path.normpath(
@@ -166,7 +167,6 @@ def make_eyring_plot(df, results_eyring):
             ax = axes[ri, ci]
 
             # Scatter — raw (df includes NMR2 as separate method)
-            ax_y_lo, ax_y_hi = [], []
             for method in ['DSC', 'NMR', 'NMR2']:
                 sub = df[(df['Method'] == method) & (df['Sample'] == sample)]
                 if sub.empty:
@@ -175,8 +175,6 @@ def make_eyring_plot(df, results_eyring):
                 x    = 1.0 / T_K
                 y    = sub[param].to_numpy() - LN60 - np.log(T_K)
                 yerr = np.clip(sub[f'{param}_err'].to_numpy(), 1e-8, None)
-                ax_y_lo.extend(y - yerr)
-                ax_y_hi.extend(y + yerr)
                 marker = 'o' if method == 'DSC' else 's'
                 mfc    = 'k' if method == 'DSC' else 'none'
                 ax.errorbar(x, y, yerr=yerr, fmt=marker, color='k',
@@ -191,14 +189,7 @@ def make_eyring_plot(df, results_eyring):
                         color='k', ls=pu.METHOD_LS[method], lw=1.0, alpha=0.7)
 
             ax.set_xlim(xlim)
-            # Robust y-limits: exclude the single most extreme lower outlier so
-            # one huge NMR error bar doesn't compress the rest of the panel.
-            # y-max is anchored at 0 (ln(k_s/T) is always negative for these k).
-            if ax_y_lo:
-                lo_sorted = sorted(ax_y_lo)
-                y_ref_lo  = lo_sorted[1] if len(lo_sorted) > 1 else lo_sorted[0]
-                pad = 0.08 * abs(max(ax_y_hi) - y_ref_lo)
-                ax.set_ylim(y_ref_lo - pad, 0)
+            ax.set_ylim(*YLIMS[param])
             if ri == 0:
                 ax.set_title(col_label, fontsize=10)
             if ri == 2:

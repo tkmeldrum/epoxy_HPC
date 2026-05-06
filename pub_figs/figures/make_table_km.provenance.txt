@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-05-05 06:43:54
+Generated : 2026-05-05 06:50:50
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/make_table_km.py
 
 DATASETS USED

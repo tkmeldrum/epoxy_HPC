@@ -47,7 +47,6 @@ def main():
     df = pu.load_posteriors()
 
     lines = [
-        r'\begin{landscape}',
         r'\begin{table}[!ht]',
         r'\caption{Modified Kamal-Malkin fits of DGEBA with '
         r'ethylenediamine (EDA), 1,3-diaminopropane (DAP), and '
@@ -55,13 +54,14 @@ def main():
         r'uncertainties represent the 95\% credible intervals from the '
         r'Bayesian analysis. For DSC, $r$ is a free parameter per temperature '
         r'(equal to $\alpha_\infty$). For NMR, $r$ is fixed to the observed '
-        r'maximum conversion per dataset ($r = \max(\alpha_\mathrm{data})$).}',
+        r'maximum conversion per dataset ($r = \max(\alpha_\mathrm{data}) '
+        r'\approx 0.95$--$1.0$) rather than the stoichiometric ratio.}',
         r'\label{tab:KM_with_r}',
         r'    \centering',
         r'    \begin{tabular}{c|cc ccccc}',
         r'        Sample & Method & Temp ($^\circ$C) & '
         r'$k_1/10^{-6}$ [s$^{-1}$] & $k_2/10^{-3}$ [s$^{-1}$] & '
-        r'$m$ & $n$ & $r$$^\ddagger$ \\ \midrule',
+        r'$m$ & $n$ & $r$ \\ \midrule',
     ]
 
     for si, sample in enumerate(SAMPLE_ORDER):
@@ -136,12 +136,7 @@ def main():
 
     lines += [
         r'    \end{tabular}',
-        r'    \footnotesize{$^\ddagger$For DSC, $r$ is fit from the data. '
-        r'For NMR, $r$ is fixed to the observed maximum conversion '
-        r'($r = \max(\alpha_\mathrm{data}) \approx 0.95$--$1.0$) '
-        r'rather than the stoichiometric ratio.}',
         r'\end{table}',
-        r'\end{landscape}',
     ]
 
     out = os.path.join(os.path.dirname(__file__), 'figures', 'table_km.tex')
