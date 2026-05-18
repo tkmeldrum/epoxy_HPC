@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-04-24 15:18:21
+Generated : 2026-05-18 10:14:55
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/arrhenius.py
 
 DATASETS USED
@@ -11,8 +11,8 @@ SOURCE FILES
     modified: 2026-04-20 15:51:50
     size    : 6694 bytes
     md5     : 562fc09ddedb74a35101415020bce7c7
-  posterior_summary_NMR_28Mar.csv
-    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_28Mar.csv
-    modified: 2026-04-20 15:51:50
-    size    : 3838 bytes
-    md5     : c3b1368a05eb662132a11bdc330a6690
+  posterior_summary_NMR_fixedr.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
+    modified: 2026-05-05 06:43:48
+    size    : 3802 bytes
+    md5     : a25f7f8781adf1aa12cc121c2fc52d51

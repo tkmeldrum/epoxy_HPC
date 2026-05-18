@@ -71,13 +71,13 @@ def main():
             if ri == 3:
                 ax.set_xlabel('Temperature (°C)')
 
-    # Legend in top-left panel: samples only (fill is redundant — all filled per column)
+    # Legend in top-right panel: samples only (fill is redundant — all filled per column)
     legend_handles = [
         Line2D([0],[0], marker='o', color='k',       mfc='k',       ls='', ms=5, label='EDA'),
         Line2D([0],[0], marker='s', color='#0072B2', mfc='#0072B2', ls='', ms=5, label='DAP'),
         Line2D([0],[0], marker='D', color='#D55E00', mfc='#D55E00', ls='', ms=5, label='DAB'),
     ]
-    axes[0, 0].legend(handles=legend_handles, frameon=False, fontsize=7,
+    axes[0, 1].legend(handles=legend_handles, frameon=False, fontsize=7,
                       loc='lower right')
 
     fig.tight_layout()

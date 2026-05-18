@@ -55,7 +55,7 @@ def main():
         r'Bayesian analysis. For DSC, $r$ is a free parameter per temperature '
         r'(equal to $\alpha_\infty$). For NMR, $r$ is fixed to the observed '
         r'maximum conversion per dataset ($r = \max(\alpha_\mathrm{data}) '
-        r'\approx 0.95$--$1.0$) rather than the stoichiometric ratio.}',
+        r'=1.0$) rather than the stoichiometric ratio.}',
         r'\label{tab:KM_with_r}',
         r'    \centering',
         r'    \begin{tabular}{c|cc ccccc}',
