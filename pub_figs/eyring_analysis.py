@@ -373,6 +373,63 @@ def write_ea_only_table(results_ea):
     print(f'LaTeX Ea-only table: {LATEX_EA_ONLY_OUT}')
 
 
+# ── Temperature-range uncertainty analysis ─────────────────────────────────────
+def _append_eyring_analysis(df, df_fit, results_ea, results_eyring):
+    """Compute % errors and restricted-temperature Eyring fits; append to provenance."""
+    DSC_NMR_TEMPS = {25, 33, 50}
+
+    def pct(val, err):
+        return 100.0 * abs(err / val) if val != 0 else float('nan')
+
+    lines = [
+        '',
+        'EYRING UNCERTAINTY ANALYSIS',
+        '  Values: ΔH‡ in kJ/mol, ΔS‡ in J/(mol·K), ΔG‡ in kJ/mol.',
+        '  % error = 100 × err / |value|.',
+        '',
+        '  Full fits (DSC: 6 temps; NMR: 3 temps):',
+    ]
+
+    for param, k_label in PARAMS:
+        lines.append(f'    {k_label}:')
+        for method in ['DSC', 'NMR']:
+            for sample in SAMPLES:
+                r = results_eyring.get(method, {}).get(sample, {}).get(param)
+                if r is None:
+                    continue
+                lines.append(
+                    f'      {method:3s} {sample}:'
+                    f'  ΔH‡ = {r["dH"]:6.1f} ± {r["dH_err"]:.1f} kJ/mol ({pct(r["dH"], r["dH_err"]):.1f}%)'
+                    f'  ΔS‡ = {r["dS"]:7.1f} ± {r["dS_err"]:.1f} J/mol/K ({pct(r["dS"], r["dS_err"]):.1f}%)'
+                    f'  ΔG‡ = {r["dG"]:6.1f} ± {r["dG_err"]:.1f} kJ/mol ({pct(r["dG"], r["dG_err"]):.1f}%)'
+                )
+
+    lines += [
+        '',
+        '  DSC restricted to 25, 33, 50 °C (closest DSC temps to NMR range):',
+        '  [Isolates temperature-range contribution to uncertainty]',
+    ]
+    df_dsc_restricted = df_fit[df_fit['Temp_C'].isin(DSC_NMR_TEMPS)]
+    for param, k_label in PARAMS:
+        lines.append(f'    {k_label}:')
+        for sample in SAMPLES:
+            r = compute_eyring(df_dsc_restricted, param, 'DSC', sample)
+            if r is None:
+                continue
+            lines.append(
+                f'      DSC {sample}:'
+                f'  ΔH‡ = {r["dH"]:6.1f} ± {r["dH_err"]:.1f} kJ/mol ({pct(r["dH"], r["dH_err"]):.1f}%)'
+                f'  ΔS‡ = {r["dS"]:7.1f} ± {r["dS_err"]:.1f} J/mol/K ({pct(r["dS"], r["dS_err"]):.1f}%)'
+                f'  ΔG‡ = {r["dG"]:6.1f} ± {r["dG_err"]:.1f} kJ/mol ({pct(r["dG"], r["dG_err"]):.1f}%)'
+            )
+
+    prov_path = os.path.join(_HERE, 'figures', 'eyring.provenance.txt')
+    with open(prov_path, 'a') as f:
+        f.write('\n'.join(lines) + '\n')
+
+    print('\n'.join(lines))
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     plt.rcParams.update({
@@ -427,6 +484,8 @@ def main():
         ],
         source_paths=[pu.DSC_CSV, pu.NMR_CSV],
     )
+
+    _append_eyring_analysis(df, df_fit, results_ea, results_eyring)
 
 
 if __name__ == '__main__':
