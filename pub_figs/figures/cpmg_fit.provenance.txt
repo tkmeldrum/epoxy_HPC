@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-05-05 07:05:46
+Generated : 2026-06-05 18:16:15
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/cpmg_fit.py
 
 DATASETS USED
