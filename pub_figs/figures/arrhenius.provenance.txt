@@ -1,5 +1,5 @@
 PROVENANCE RECORD
-Generated : 2026-05-18 10:14:55
+Generated : 2026-06-05 18:28:35
 Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/arrhenius.py
 
 DATASETS USED
@@ -16,3 +16,33 @@ SOURCE FILES
     modified: 2026-05-05 06:43:48
     size    : 3802 bytes
     md5     : a25f7f8781adf1aa12cc121c2fc52d51
+
+ACTIVATION ENERGY ANALYSIS
+  Values in kJ/mol.  % error = 100 × Ea_err / Ea.
+
+  Full fits (DSC: 6 temps; NMR: 3 temps):
+    k1:
+      DSC EDA: Ea =   64.8 ± 0.1 kJ/mol  (0.2%)
+      DSC DAP: Ea =   49.9 ± 0.2 kJ/mol  (0.4%)
+      DSC DAB: Ea =   65.1 ± 0.3 kJ/mol  (0.5%)
+      NMR EDA: Ea =  -96.3 ± 367.0 kJ/mol  (381.1%)
+      NMR DAP: Ea =   16.4 ± 4.5 kJ/mol  (27.3%)
+      NMR DAB: Ea =  466.6 ± 277.8 kJ/mol  (59.5%)
+    k2:
+      DSC EDA: Ea =   41.1 ± 0.2 kJ/mol  (0.5%)
+      DSC DAP: Ea =   47.0 ± 0.2 kJ/mol  (0.3%)
+      DSC DAB: Ea =   45.5 ± 0.3 kJ/mol  (0.7%)
+      NMR EDA: Ea =   80.4 ± 3.8 kJ/mol  (4.7%)
+      NMR DAP: Ea =   62.8 ± 3.2 kJ/mol  (5.1%)
+      NMR DAB: Ea =   88.6 ± 6.0 kJ/mol  (6.7%)
+
+  DSC restricted to 25, 33, 50 °C (closest DSC temps to NMR range):
+  [Isolates effect of temperature range vs temporal resolution on NMR uncertainty]
+    k1:
+      DSC EDA: Ea =   27.9 ± 0.3 kJ/mol  (0.9%)
+      DSC DAP: Ea =   51.0 ± 0.3 kJ/mol  (0.6%)
+      DSC DAB: Ea =   65.1 ± 0.3 kJ/mol  (0.5%)
+    k2:
+      DSC EDA: Ea =   49.8 ± 0.6 kJ/mol  (1.2%)
+      DSC DAP: Ea =   47.0 ± 0.8 kJ/mol  (1.7%)
+      DSC DAB: Ea =   32.5 ± 1.1 kJ/mol  (3.3%)

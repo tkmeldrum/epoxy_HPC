@@ -91,5 +91,57 @@ def main():
     )
     plt.close(fig)
 
+    _append_ea_analysis(df, df_fit)
+
+def _append_ea_analysis(df, df_fit):
+    """Compute Ea stats and append them to the provenance file."""
+    DSC_NMR_TEMPS = {25, 33, 50}   # three lowest DSC temps, closest to NMR range
+
+    lines = [
+        '',
+        'ACTIVATION ENERGY ANALYSIS',
+        '  Values in kJ/mol.  % error = 100 × Ea_err / Ea.',
+        '',
+        '  Full fits (DSC: 6 temps; NMR: 3 temps):',
+    ]
+    for param, k_label in [('lnk1', 'k1'), ('lnk2', 'k2')]:
+        lines.append(f'    {k_label}:')
+        for method in ['DSC', 'NMR']:
+            for sample in SAMPLES:
+                try:
+                    Ea, Ea_err = pu.compute_ea(df_fit, param, method, sample)
+                    pct = 100.0 * abs(Ea_err / Ea)
+                    lines.append(
+                        f'      {method:3s} {sample}: Ea = {Ea:6.1f} ± {Ea_err:.1f} kJ/mol  ({pct:.1f}%)'
+                    )
+                except ValueError:
+                    pass
+
+    lines += [
+        '',
+        '  DSC restricted to 25, 33, 50 °C (closest DSC temps to NMR range):',
+        '  [Isolates effect of temperature range vs temporal resolution on NMR uncertainty]',
+    ]
+    df_dsc_restricted = df[df['Temp_C'].isin(DSC_NMR_TEMPS)]
+    for param, k_label in [('lnk1', 'k1'), ('lnk2', 'k2')]:
+        lines.append(f'    {k_label}:')
+        for sample in SAMPLES:
+            try:
+                Ea, Ea_err = pu.compute_ea(df_dsc_restricted, param, 'DSC', sample)
+                pct = 100.0 * abs(Ea_err / Ea)
+                lines.append(
+                    f'      DSC {sample}: Ea = {Ea:6.1f} ± {Ea_err:.1f} kJ/mol  ({pct:.1f}%)'
+                )
+            except ValueError:
+                pass
+
+    prov_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             'figures', 'arrhenius.provenance.txt')
+    with open(prov_path, 'a') as f:
+        f.write('\n'.join(lines) + '\n')
+
+    print('\n'.join(lines))
+
+
 if __name__ == '__main__':
     main()
