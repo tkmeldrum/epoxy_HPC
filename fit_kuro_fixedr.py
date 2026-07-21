@@ -364,6 +364,29 @@ def plot_results(samples, t_data, a_data, method, sample, temp):
     fig.savefig(f"fit_plots/{label}_combined.png")
     plt.close(fig)
 
+def load_nmr_alpha_t(sample, temp, eps=1e-6):
+    """Return (t_data, a_data) for one NMR (sample, temp), truncated at max(alpha).
+
+    Existing (sample, temp) pairs are read from the .mat file via nmr_index,
+    exactly as before. Pairs not in nmr_index (e.g. new datasets not yet folded
+    into the .mat) fall back to cpmg_fit_results/{sample}_{temp}C.csv.
+    """
+    if (sample, temp) in nmr_index:
+        ii = nmr_index[(sample, temp)]
+        t_data = np.squeeze(mat['NMR'][0, 0]['clean_time'][0, ii])
+        a_data = np.squeeze(mat['NMR'][0, 0]['clean_alpha'][0, ii])
+    else:
+        csv_path = f"cpmg_fit_results/{sample}_{temp}C.csv"
+        df = pd.read_csv(csv_path)
+        df = df[~df.get("dropped", False)].dropna(subset=["alpha"]).sort_values("timestamp")
+        t_data = df["elapsed_min"].values * 60.0   # match seconds convention used in the .mat
+        a_data = df["alpha"].values
+    t_data = t_data - t_data[0]
+    a_data = np.clip(a_data, eps, 1 - eps)
+    imax = np.argmax(a_data)
+    return t_data[:imax + 1], a_data[:imax + 1]
+
+
 def process_single(task):
     method, sample, temp = task
     print(f"Fitting {method} {sample} at {temp} °C")
@@ -378,23 +401,19 @@ def process_single(task):
         f.write(f"🔍 Log for {label} started\n")
 
 
-    dataset_name = 'NMR' if method == 'NMR' else sample
-    if method == 'NMR':
-        ii = nmr_index[(sample, temp)]
-    else:
-        ii = [25, 33, 50, 60, 80, 100].index(temp)
-
     try:
-        t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
-        # NMR: 'clean_alpha_unscaled' is a raw T2-based metric (range ~0–0.05),
-        # not fractional conversion. Use 'clean_alpha' (range 0–1) instead.
-        # DSC: 'clean_alpha_unscaled' is correct fractional conversion (r < 1).
-        alpha_field = 'clean_alpha' if method == 'NMR' else 'clean_alpha_unscaled'
-        a_data = np.squeeze(mat[dataset_name][0, 0][alpha_field][0, ii])
-        t_data -= t_data[0]
-        a_data = np.clip(a_data, 1e-6, 1 - 1e-6)
-        imax = np.argmax(a_data)
-        t_data, a_data = t_data[:imax + 1], a_data[:imax + 1]
+        if method == 'NMR':
+            t_data, a_data = load_nmr_alpha_t(sample, temp, eps=1e-6)
+        else:
+            dataset_name = sample
+            ii = [25, 33, 50, 60, 80, 100].index(temp)
+            # DSC: 'clean_alpha_unscaled' is the correct fractional conversion (r < 1).
+            t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
+            a_data = np.squeeze(mat[dataset_name][0, 0]['clean_alpha_unscaled'][0, ii])
+            t_data -= t_data[0]
+            a_data = np.clip(a_data, 1e-6, 1 - 1e-6)
+            imax = np.argmax(a_data)
+            t_data, a_data = t_data[:imax + 1], a_data[:imax + 1]
     except Exception:
         print(f"Dataset {method}_{sample}_{temp}C not found.")
         return None
@@ -523,17 +542,15 @@ if __name__ == "__main__":
         print(f"🗺️  Running posterior grid scan for {method} {sample} at {temp} °C")
 
         # Load data just like in process_single
-        dataset_name = sample if method != "NMR" else "NMR"
         if method == "NMR":
-            ii = nmr_index[(sample, temp)]
+            t_data, a_data = load_nmr_alpha_t(sample, temp, eps=1e-8)
         else:
+            dataset_name = sample
             ii = [25, 33, 50, 60, 80, 100].index(temp)
-
-        t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
-        alpha_field = 'clean_alpha' if method == 'NMR' else 'clean_alpha_unscaled'
-        a_data = np.squeeze(mat[dataset_name][0, 0][alpha_field][0, ii])
-        t_data = t_data - t_data[0]
-        a_data = np.clip(a_data, 1e-8, 1 - 1e-8)
+            t_data = np.squeeze(mat[dataset_name][0, 0]['clean_time'][0, ii])
+            a_data = np.squeeze(mat[dataset_name][0, 0]['clean_alpha_unscaled'][0, ii])
+            t_data = t_data - t_data[0]
+            a_data = np.clip(a_data, 1e-8, 1 - 1e-8)
         r = np.max(a_data)
         # r = 2.0  # Fixed r for all fits, as per new plan
 

@@ -47,6 +47,13 @@ DAP2_EXPERIMENTS = {
     "40C": "Epoxy2026/13DAP/CPMG_40C_2",
 }
 
+# 60C: new temperature, one zip per sample (raw data not yet bundled like 25/33/40C)
+EXPERIMENTS_60C = {
+    "EDA": {"zip": ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger"},
+    # "DAP": {"zip": ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
+    # "DAB": {"zip": ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
+}
+
 
 # ── Zip-aware Kea readers ─────────────────────────────────────────────────────
 
@@ -252,9 +259,17 @@ def _read_scan_data(scan: dict, zf: zipfile.ZipFile):
 def _fit_echo_array(t, y, ts, idx, n_avg=1) -> dict | None:
     """Fit a (possibly averaged) echo array to A * exp(-(t/T2)^beta)."""
     try:
-        A0 = float(np.max(y)) if np.max(y) > 0 else 1.0
-        half_max_idx = np.searchsorted(-y, -A0 / 2)
-        T2_0 = float(t[min(half_max_idx, len(t) - 1)])
+        # A0: max over the first 15% of points only, so a late-array noise
+        # spike (once real signal has fully decayed away) can't be mistaken
+        # for the initial amplitude.
+        n_early = max(1, round(0.15 * len(y)))
+        A0 = float(np.max(y[:n_early])) if np.max(y[:n_early]) > 0 else 1.0
+        # T2_0: first point where y actually drops below A0/2 (well-defined
+        # regardless of noise, unlike searchsorted which assumes y is sorted).
+        # Floored at half an echo spacing so the guess is never sub-resolution.
+        below_half = np.flatnonzero(y <= A0 / 2)
+        T2_0 = float(t[below_half[0]]) if below_half.size else float(t[-1])
+        T2_0 = max(T2_0, 0.5 * t[0])
         p0     = [A0, T2_0, 1.0]
         bounds = ([0, 0, 0], [np.inf, np.inf, 5])
         popt, pcov = curve_fit(stretched_exp, t, y, p0=p0,
@@ -434,6 +449,15 @@ def run_all() -> pd.DataFrame:
             df = process_sample(DAP2_ZIP, "DAP2", temp, "DAP2",
                                 direct_prefix=prefix)
             all_dfs.append(df)
+
+    # 60C datasets (new temperature)
+    for sample, info in EXPERIMENTS_60C.items():
+        if not info["zip"].exists():
+            print(f"[SKIP] {info['zip']} not found.")
+            continue
+        df = process_sample(info["zip"], sample, "60C", sample,
+                            direct_prefix=info["prefix"])
+        all_dfs.append(df)
 
     return pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
 
@@ -706,9 +730,13 @@ if __name__ == "__main__":
             else:
                 plot_decays(DAP2_ZIP, "DAP2", temp, "DAP2", out_dir,
                             direct_prefix=DAP2_EXPERIMENTS[temp])
+        elif sample in EXPERIMENTS_60C and temp == "60C":
+            info = EXPERIMENTS_60C[sample]
+            plot_decays(info["zip"], sample, temp, sample, out_dir,
+                        direct_prefix=info["prefix"])
         elif temp not in EXPERIMENTS or sample not in EXPERIMENTS[temp]:
             print(f"Unknown sample/temp: {sample} {temp}. "
-                  f"Valid temps: {list(EXPERIMENTS)}, or use DAP2.")
+                  f"Valid temps: {list(EXPERIMENTS)}, or use DAP2 / {list(EXPERIMENTS_60C)} at 60C.")
         else:
             zip_path = ZIP_ROOT / f"{temp}.zip"
             wm_id = EXPERIMENTS[temp][sample]

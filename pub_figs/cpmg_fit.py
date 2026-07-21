@@ -44,6 +44,13 @@ DAP2_EXPERIMENTS = {
     "40C": "Epoxy2026/13DAP/CPMG_40C_2",
 }
 
+# 60C: new temperature, one zip per sample (mirrors cpmg_batch_fit.py)
+EXPERIMENTS_60C = {
+    "EDA": {"zip": _ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger"},
+    # "DAP": {"zip": _ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
+    # "DAB": {"zip": _ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
+}
+
 
 # ── Kea binary readers (ported from cpmg_batch_fit.py) ───────────────────────
 
@@ -204,6 +211,26 @@ def _load_scan_decay(sample, temp_str, scan_num, n_avg):
         zip_path = DAP2_ZIP
         with zipfile.ZipFile(zip_path) as zf:
             all_scans = _list_scans_direct(zf, DAP2_EXPERIMENTS[temp_str])
+            start_pos = next((i for i, s in enumerate(all_scans)
+                              if s['index'] == scan_num), None)
+            if start_pos is None:
+                raise ValueError(f"Scan {scan_num} not found for {sample} {temp_str}")
+            group = all_scans[start_pos: start_pos + max(1, n_avg)]
+            t_ref = None
+            ys = []
+            for s in group:
+                par_bytes  = zf.read(s['par_info'].filename)
+                data_bytes = zf.read(s['data_info'].filename)
+                params = _read_params_from_bytes(par_bytes)
+                t, y   = _prepare_t2_from_bytes(data_bytes, params)
+                if t_ref is None:
+                    t_ref = t
+                ys.append(y)
+    elif sample in EXPERIMENTS_60C:
+        info = EXPERIMENTS_60C[sample]
+        zip_path = info["zip"]
+        with zipfile.ZipFile(zip_path) as zf:
+            all_scans = _list_scans_direct(zf, info["prefix"])
             start_pos = next((i for i, s in enumerate(all_scans)
                               if s['index'] == scan_num), None)
             if start_pos is None:
