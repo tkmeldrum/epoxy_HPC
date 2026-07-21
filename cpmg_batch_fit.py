@@ -49,9 +49,11 @@ DAP2_EXPERIMENTS = {
 
 # 60C: new temperature, one zip per sample (raw data not yet bundled like 25/33/40C)
 EXPERIMENTS_60C = {
-    "EDA": {"zip": ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger"},
-    # "DAP": {"zip": ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
-    # "DAB": {"zip": ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
+    # EDA's first attempt ("debugger") was superseded by a repeat run
+    # ("debugger4") -- see README for why.
+    "EDA": {"zip": ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger4"},
+    "DAP": {"zip": ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
+    "DAB": {"zip": ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
 }
 
 

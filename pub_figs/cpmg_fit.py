@@ -46,9 +46,11 @@ DAP2_EXPERIMENTS = {
 
 # 60C: new temperature, one zip per sample (mirrors cpmg_batch_fit.py)
 EXPERIMENTS_60C = {
-    "EDA": {"zip": _ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger"},
-    # "DAP": {"zip": _ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
-    # "DAB": {"zip": _ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
+    # EDA's first attempt ("debugger") was superseded by a repeat run
+    # ("debugger4") -- see README for why.
+    "EDA": {"zip": _ZIP_ROOT / "DGEBA_EDA_60.zip", "prefix": "debugger4"},
+    "DAP": {"zip": _ZIP_ROOT / "DGEBA_DAP_60.zip", "prefix": "debugger"},
+    "DAB": {"zip": _ZIP_ROOT / "DGEBA_DAB_60.zip", "prefix": "debugger"},
 }
 
 
