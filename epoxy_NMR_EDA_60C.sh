@@ -18,10 +18,13 @@ conda activate epoxy
 
 set BASE = ~/epoxy_kinetics
 mkdir -p $BASE/logs
+cd $BASE
 
 # Single-dataset MCMC fit, not the 12-array epoxy_NMR_mcmc.sh.
 # r = max(alpha_data) per dataset -- do NOT use fit_kuro.py (free r).
-python3 $BASE/fit_kuro_fixedr.py NMR EDA 60
+# NMR alpha(t) for EDA/60C comes from cpmg_fit_results/EDA_60C.csv (relative
+# path -- must run with CWD = $BASE), since it's not yet in epoxy_data_13Mar2026.mat.
+python3 fit_kuro_fixedr.py NMR EDA 60
 echo "MCMC done at: `date`"
 
 conda deactivate
