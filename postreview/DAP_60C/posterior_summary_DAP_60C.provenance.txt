@@ -1,0 +1,11 @@
+PROVENANCE RECORD
+Generated : 2026-07-21 22:52:01
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/plot_mcmc.py
+Output    : /Users/tyler/Documents/GitHub/epoxy_HPC/postreview/DAP_60C/posterior_summary_DAP_60C.csv
+
+SOURCE FILES (MCMC chains)
+  NMR_DAP_60C_fitdata.npz
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/mcmc_samples_nmr/NMR_DAP_60C_fitdata.npz
+    modified: 2026-07-21 22:39:37
+    size    : 1344001710 bytes
+    md5     : 61dafb0ea8069b83b218928770f134dd

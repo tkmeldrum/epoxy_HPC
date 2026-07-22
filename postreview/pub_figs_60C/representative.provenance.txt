@@ -1,0 +1,30 @@
+PROVENANCE RECORD
+Generated : 2026-07-21 23:49:25
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/representative.py
+
+DATASETS USED
+  Posterior summaries — sample: EDA, temp: 33C; methods: DSC and NMR
+  DSC raw time-series — sample: EDA, temp: 33C (alpha, dα/dt)
+  NMR raw time-series — sample: EDA, temp: 33C (alpha vs elapsed time)
+
+SOURCE FILES
+  posterior_summary_DSC.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_DSC.csv
+    modified: 2026-04-20 15:51:50
+    size    : 6694 bytes
+    md5     : 562fc09ddedb74a35101415020bce7c7
+  posterior_summary_NMR_fixedr.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
+    modified: 2026-07-21 23:15:25
+    size    : 4705 bytes
+    md5     : 4f021c420ac79736467b3b31d33bfd11
+  epoxy_data_13Mar2026.mat
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/epoxy_data_13Mar2026.mat
+    modified: 2026-04-20 15:51:50
+    size    : 6713577 bytes
+    md5     : 8a28b34d2d0c62153a4c7ff546cfd3b7
+  all_samples.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/cpmg_fit_results/all_samples.csv
+    modified: 2026-07-21 18:02:13
+    size    : 139848 bytes
+    md5     : 921ac650922ba91d4e4b92836ee9f93c

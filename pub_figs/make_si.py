@@ -26,21 +26,22 @@ The si_figures.tex file uses absolute paths for \\includegraphics and ends with
 
 Re-run this script any time the posteriors or raw data change.
 """
-import sys, os
+import sys, os, argparse
 sys.path.insert(0, os.path.dirname(__file__))
 import pub_utils as pu
 from cpmg_fit      import make_cpmg_figure
 from representative import make_rep_figure, get_param_bounds
 
 # ── Dataset tables ─────────────────────────────────────────────────────────────
-DSC_TEMPS = [25, 33, 50, 60, 80, 100]
-NMR_TEMPS = [25, 33, 40]
-SAMPLES   = ['EDA', 'DAP', 'DAB']
+DSC_TEMPS  = [25, 33, 50, 60, 80, 100]
+NMR_TEMPS  = [25, 33, 40, 60]
+NMR2_TEMPS = [25, 33, 40]   # DAP2 replicate was never re-run at 60C
+SAMPLES    = ['EDA', 'DAP', 'DAB']
 
 DSC_SETS  = [(s, t) for s in SAMPLES for t in DSC_TEMPS]
 NMR_SETS  = [(s, t) for s in SAMPLES for t in NMR_TEMPS]
-NMR2_SETS = [('DAP', t) for t in NMR_TEMPS]   # DAP2 replicate; Sample='DAP' in posteriors
-CPMG_SETS = [(s, t, False) for s, t in NMR_SETS] + [('DAP', t, True) for t in NMR_TEMPS]
+NMR2_SETS = [('DAP', t) for t in NMR2_TEMPS]   # DAP2 replicate; Sample='DAP' in posteriors
+CPMG_SETS = [(s, t, False) for s, t in NMR_SETS] + [('DAP', t, True) for t in NMR2_TEMPS]
 
 FULL_NAMES = {
     'EDA': 'ethylenediamine (EDA)',
@@ -69,10 +70,8 @@ def _cap_rep(method, sample, temp, replicate=False):
     )
 
 # ── LaTeX figure environment builder ──────────────────────────────────────────
-_FIGURES_ABS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'figures')
-
 def _fig_env(stem, caption, label):
-    abspath = os.path.join(_FIGURES_ABS, stem) + '.pdf'
+    abspath = os.path.join(pu._figures_dir(), stem) + '.pdf'
     return '\n'.join([
         r'\begin{figure}[!ht]',
         r'  \centering',
@@ -87,7 +86,7 @@ def main():
     pu.snapshot_data()
     df = pu.load_posteriors()
 
-    si_dir = os.path.join(os.path.dirname(__file__), 'figures', 'SI_figures')
+    si_dir = os.path.join(pu._figures_dir(), 'SI_figures')
     os.makedirs(si_dir, exist_ok=True)
 
     tex_blocks = []
@@ -145,12 +144,12 @@ def main():
     tex_blocks.append(r'\clearpage')
     tex_blocks.append(r'\section{Kamal-Malkin Fit Parameters}')
     tex_blocks.append('')
-    table_km_abs = os.path.join(_FIGURES_ABS, 'table_km.tex')
+    table_km_abs = os.path.join(pu._figures_dir(), 'table_km.tex')
     tex_blocks.append(rf'\input{{{table_km_abs}}}')
     tex_blocks.append('')
 
     # ── Write si_figures.tex ───────────────────────────────────────────────────
-    out = os.path.join(os.path.dirname(__file__), 'figures', 'si_figures.tex')
+    out = os.path.join(pu._figures_dir(), 'si_figures.tex')
     with open(out, 'w') as f:
         f.write('\n'.join(tex_blocks) + '\n')
     print(f'Saved: {out}')
@@ -166,4 +165,10 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here instead of figures/ (does not touch the originals).')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()

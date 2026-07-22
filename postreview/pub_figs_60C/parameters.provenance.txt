@@ -1,0 +1,18 @@
+PROVENANCE RECORD
+Generated : 2026-07-22 06:50:48
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/parameters.py
+
+DATASETS USED
+  Posterior summaries — samples: EDA, DAP, DAB; methods: DSC and NMR (NMR2 shown in NMR column); all temperatures; parameters: ln k1, ln k2, m, n
+
+SOURCE FILES
+  posterior_summary_DSC.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_DSC.csv
+    modified: 2026-04-20 15:51:50
+    size    : 6694 bytes
+    md5     : 562fc09ddedb74a35101415020bce7c7
+  posterior_summary_NMR_fixedr.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
+    modified: 2026-07-22 06:48:02
+    size    : 4699 bytes
+    md5     : 01e09ce5448e1b52653de1d0b37f8dee

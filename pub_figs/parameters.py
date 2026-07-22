@@ -1,5 +1,5 @@
 """4×2 parameter scatter: rows = ln k1 / ln k2 / m / n, cols = DSC / NMR."""
-import sys, os
+import sys, os, argparse
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import matplotlib.pyplot as plt
@@ -90,4 +90,10 @@ def main():
     plt.close(fig)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here instead of figures/ (does not touch the originals).')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()

@@ -1,0 +1,29 @@
+PROVENANCE RECORD
+Generated : 2026-07-22 06:51:02
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/make_si.py
+
+DATASETS USED
+  NMR raw CPMG fit results — EDA/DAP/DAB/DAP2 at 25, 33, 40 °C
+  Posterior summaries — DSC: EDA/DAP/DAB at 25–100 °C; NMR: EDA/DAP/DAB/DAP2 at 25–40 °C
+
+SOURCE FILES
+  all_samples.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/cpmg_fit_results/all_samples.csv
+    modified: 2026-07-21 18:02:13
+    size    : 139848 bytes
+    md5     : 921ac650922ba91d4e4b92836ee9f93c
+  posterior_summary_DSC.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_DSC.csv
+    modified: 2026-04-20 15:51:50
+    size    : 6694 bytes
+    md5     : 562fc09ddedb74a35101415020bce7c7
+  posterior_summary_NMR_fixedr.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/posterior_summary_NMR_fixedr.csv
+    modified: 2026-07-22 06:48:02
+    size    : 4699 bytes
+    md5     : 01e09ce5448e1b52653de1d0b37f8dee
+  epoxy_data_13Mar2026.mat
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/epoxy_data_13Mar2026.mat
+    modified: 2026-04-20 15:51:50
+    size    : 6713577 bytes
+    md5     : 8a28b34d2d0c62153a4c7ff546cfd3b7

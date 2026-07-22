@@ -1,0 +1,62 @@
+
+EYRING UNCERTAINTY ANALYSIS
+  Values: ΔH‡ in kJ/mol, ΔS‡ in J/(mol·K), ΔG‡ in kJ/mol.
+  % error = 100 × err / |value|.
+
+  Full fits (DSC: 6 temps; NMR: 3 temps):
+    $k_1$:
+      DSC EDA:  ΔH‡ =   62.1 ± 0.1 kJ/mol (0.2%)  ΔS‡ =  -158.5 ± 0.3 J/mol/K (0.2%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   47.2 ± 0.2 kJ/mol (0.4%)  ΔS‡ =  -207.5 ± 0.6 J/mol/K (0.3%)  ΔG‡ =  109.1 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   62.5 ± 0.3 kJ/mol (0.5%)  ΔS‡ =  -157.1 ± 1.1 J/mol/K (0.7%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+      NMR EDA:  ΔH‡ =   72.4 ± 18.7 kJ/mol (25.8%)  ΔS‡ =  -122.6 ± 56.9 J/mol/K (46.4%)  ΔG‡ =  108.9 ± 1.8 kJ/mol (1.7%)
+      NMR DAP:  ΔH‡ =    6.7 ± 3.6 kJ/mol (54.5%)  ΔS‡ =  -321.4 ± 12.1 J/mol/K (3.8%)  ΔG‡ =  102.5 ± 0.0 kJ/mol (0.0%)
+      NMR DAB:  ΔH‡ =  104.9 ± 203.8 kJ/mol (194.3%)  ΔS‡ =   -15.8 ± 650.7 J/mol/K (4130.2%)  ΔG‡ =  109.6 ± 9.8 kJ/mol (8.9%)
+    $k_2$:
+      DSC EDA:  ΔH‡ =   38.3 ± 0.2 kJ/mol (0.6%)  ΔS‡ =  -220.4 ± 0.7 J/mol/K (0.3%)  ΔG‡ =  104.1 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   44.2 ± 0.2 kJ/mol (0.3%)  ΔS‡ =  -200.3 ± 0.4 J/mol/K (0.2%)  ΔG‡ =  104.0 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   42.8 ± 0.3 kJ/mol (0.8%)  ΔS‡ =  -201.2 ± 1.0 J/mol/K (0.5%)  ΔG‡ =  102.8 ± 0.0 kJ/mol (0.0%)
+      NMR EDA:  ΔH‡ =   77.7 ± 3.7 kJ/mol (4.8%)  ΔS‡ =   -85.6 ± 12.1 J/mol/K (14.2%)  ΔG‡ =  103.2 ± 0.1 kJ/mol (0.1%)
+      NMR DAP:  ΔH‡ =   54.8 ± 2.8 kJ/mol (5.0%)  ΔS‡ =  -158.6 ± 9.0 J/mol/K (5.7%)  ΔG‡ =  102.1 ± 0.1 kJ/mol (0.1%)
+      NMR DAB:  ΔH‡ =   42.4 ± 2.2 kJ/mol (5.3%)  ΔS‡ =  -201.7 ± 7.2 J/mol/K (3.6%)  ΔG‡ =  102.6 ± 0.1 kJ/mol (0.1%)
+
+  DSC restricted to 25, 33, 50 °C (closest DSC temps to NMR range):
+  [Isolates temperature-range contribution to uncertainty]
+    $k_1$:
+      DSC EDA:  ΔH‡ =   25.3 ± 0.3 kJ/mol (1.0%)  ΔS‡ =  -279.1 ± 0.8 J/mol/K (0.3%)  ΔG‡ =  108.6 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   48.4 ± 0.3 kJ/mol (0.7%)  ΔS‡ =  -203.7 ± 1.0 J/mol/K (0.5%)  ΔG‡ =  109.2 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   62.5 ± 0.3 kJ/mol (0.5%)  ΔS‡ =  -157.1 ± 1.1 J/mol/K (0.7%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+    $k_2$:
+      DSC EDA:  ΔH‡ =   47.2 ± 0.6 kJ/mol (1.2%)  ΔS‡ =  -192.0 ± 1.8 J/mol/K (0.9%)  ΔG‡ =  104.4 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   44.4 ± 0.8 kJ/mol (1.8%)  ΔS‡ =  -199.7 ± 2.4 J/mol/K (1.2%)  ΔG‡ =  104.0 ± 0.1 kJ/mol (0.1%)
+      DSC DAB:  ΔH‡ =   29.9 ± 1.1 kJ/mol (3.5%)  ΔS‡ =  -244.3 ± 3.5 J/mol/K (1.4%)  ΔG‡ =  102.7 ± 0.0 kJ/mol (0.0%)
+
+EYRING UNCERTAINTY ANALYSIS
+  Values: ΔH‡ in kJ/mol, ΔS‡ in J/(mol·K), ΔG‡ in kJ/mol.
+  % error = 100 × err / |value|.
+
+  Full fits (DSC: 6 temps; NMR: 3 temps):
+    $k_1$:
+      DSC EDA:  ΔH‡ =   62.1 ± 0.1 kJ/mol (0.2%)  ΔS‡ =  -158.5 ± 0.3 J/mol/K (0.2%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   47.2 ± 0.2 kJ/mol (0.4%)  ΔS‡ =  -207.5 ± 0.6 J/mol/K (0.3%)  ΔG‡ =  109.1 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   62.5 ± 0.3 kJ/mol (0.5%)  ΔS‡ =  -157.1 ± 1.1 J/mol/K (0.7%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+      NMR EDA:  ΔH‡ =   72.4 ± 18.7 kJ/mol (25.8%)  ΔS‡ =  -122.6 ± 56.9 J/mol/K (46.4%)  ΔG‡ =  108.9 ± 1.8 kJ/mol (1.7%)
+      NMR DAP:  ΔH‡ =    6.7 ± 3.6 kJ/mol (54.5%)  ΔS‡ =  -321.4 ± 12.1 J/mol/K (3.8%)  ΔG‡ =  102.5 ± 0.0 kJ/mol (0.0%)
+      NMR DAB:  ΔH‡ =  124.9 ± 204.1 kJ/mol (163.5%)  ΔS‡ =    48.0 ± 651.7 J/mol/K (1358.0%)  ΔG‡ =  110.5 ± 9.8 kJ/mol (8.8%)
+    $k_2$:
+      DSC EDA:  ΔH‡ =   38.3 ± 0.2 kJ/mol (0.6%)  ΔS‡ =  -220.4 ± 0.7 J/mol/K (0.3%)  ΔG‡ =  104.1 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   44.2 ± 0.2 kJ/mol (0.3%)  ΔS‡ =  -200.3 ± 0.4 J/mol/K (0.2%)  ΔG‡ =  104.0 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   42.8 ± 0.3 kJ/mol (0.8%)  ΔS‡ =  -201.2 ± 1.0 J/mol/K (0.5%)  ΔG‡ =  102.8 ± 0.0 kJ/mol (0.0%)
+      NMR EDA:  ΔH‡ =   77.7 ± 3.7 kJ/mol (4.8%)  ΔS‡ =   -85.6 ± 12.1 J/mol/K (14.2%)  ΔG‡ =  103.2 ± 0.1 kJ/mol (0.1%)
+      NMR DAP:  ΔH‡ =   54.8 ± 2.8 kJ/mol (5.0%)  ΔS‡ =  -158.6 ± 9.0 J/mol/K (5.7%)  ΔG‡ =  102.1 ± 0.1 kJ/mol (0.1%)
+      NMR DAB:  ΔH‡ =   42.5 ± 2.3 kJ/mol (5.4%)  ΔS‡ =  -201.5 ± 7.4 J/mol/K (3.7%)  ΔG‡ =  102.6 ± 0.1 kJ/mol (0.1%)
+
+  DSC restricted to 25, 33, 50 °C (closest DSC temps to NMR range):
+  [Isolates temperature-range contribution to uncertainty]
+    $k_1$:
+      DSC EDA:  ΔH‡ =   25.3 ± 0.3 kJ/mol (1.0%)  ΔS‡ =  -279.1 ± 0.8 J/mol/K (0.3%)  ΔG‡ =  108.6 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   48.4 ± 0.3 kJ/mol (0.7%)  ΔS‡ =  -203.7 ± 1.0 J/mol/K (0.5%)  ΔG‡ =  109.2 ± 0.0 kJ/mol (0.0%)
+      DSC DAB:  ΔH‡ =   62.5 ± 0.3 kJ/mol (0.5%)  ΔS‡ =  -157.1 ± 1.1 J/mol/K (0.7%)  ΔG‡ =  109.3 ± 0.0 kJ/mol (0.0%)
+    $k_2$:
+      DSC EDA:  ΔH‡ =   47.2 ± 0.6 kJ/mol (1.2%)  ΔS‡ =  -192.0 ± 1.8 J/mol/K (0.9%)  ΔG‡ =  104.4 ± 0.0 kJ/mol (0.0%)
+      DSC DAP:  ΔH‡ =   44.4 ± 0.8 kJ/mol (1.8%)  ΔS‡ =  -199.7 ± 2.4 J/mol/K (1.2%)  ΔG‡ =  104.0 ± 0.1 kJ/mol (0.1%)
+      DSC DAB:  ΔH‡ =   29.9 ± 1.1 kJ/mol (3.5%)  ΔS‡ =  -244.3 ± 3.5 J/mol/K (1.4%)  ΔG‡ =  102.7 ± 0.0 kJ/mol (0.0%)

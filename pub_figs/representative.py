@@ -235,4 +235,11 @@ def main():
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here instead of figures/ (does not touch the originals).')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()

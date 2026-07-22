@@ -50,11 +50,29 @@ plt.rcParams.update({
 
 R_GAS = 8.3145  # J / (mol·K)
 
+# ── Output directory override ──────────────────────────────────────────────────
+# Lets a script redirect all figure/table/provenance output elsewhere (e.g. a
+# review folder) without touching pub_figs/figures/. Default (None) reproduces
+# exactly today's behavior.
+_OUTPUT_DIR_OVERRIDE = None
+
+def set_output_dir(path):
+    global _OUTPUT_DIR_OVERRIDE
+    _OUTPUT_DIR_OVERRIDE = path
+    os.makedirs(path, exist_ok=True)
+
+def _figures_dir():
+    return _OUTPUT_DIR_OVERRIDE or _FIGURES
+
+def get_output_dir():
+    """Return the active output-dir override, or None if using the default figures/."""
+    return _OUTPUT_DIR_OVERRIDE
+
 # ── Data provenance snapshot ───────────────────────────────────────────────────
 def snapshot_data():
-    """Copy input data files to figures/data_YYYYMMDD/ once per day."""
+    """Copy input data files to <figures_dir>/data_YYYYMMDD/ once per day."""
     tag = date.today().strftime('%Y%m%d')
-    dest = os.path.join(_FIGURES, f'data_{tag}')
+    dest = os.path.join(_figures_dir(), f'data_{tag}')
     if os.path.isdir(dest):
         return
     os.makedirs(dest, exist_ok=True)
@@ -203,10 +221,10 @@ def _md5(path):
     return h.hexdigest()
 
 def write_provenance(script_path, datasets, source_paths):
-    """Write figures/<script_stem>.provenance.txt with dataset and file metadata."""
-    os.makedirs(_FIGURES, exist_ok=True)
+    """Write <figures_dir>/<script_stem>.provenance.txt with dataset and file metadata."""
+    os.makedirs(_figures_dir(), exist_ok=True)
     stem = os.path.splitext(os.path.basename(script_path))[0]
-    out  = os.path.join(_FIGURES, f'{stem}.provenance.txt')
+    out  = os.path.join(_figures_dir(), f'{stem}.provenance.txt')
     now  = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     lines = [
@@ -242,7 +260,7 @@ def write_provenance(script_path, datasets, source_paths):
 
 # ── Save figure ───────────────────────────────────────────────────────────────
 def savefig(fig, name, dpi=FIG_DPI):
-    base = os.path.join(_FIGURES, name)
+    base = os.path.join(_figures_dir(), name)
     os.makedirs(os.path.dirname(base), exist_ok=True)
     fig.savefig(base + '.pdf', bbox_inches='tight')
     fig.savefig(base + '.png', dpi=dpi, bbox_inches='tight')

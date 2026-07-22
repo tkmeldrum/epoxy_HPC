@@ -62,7 +62,7 @@ Outputs (all separate from arrhenius.py outputs):
   figures/eyring.provenance.txt     — data hashes and timestamp
   <Epoxy-Kinetics-2025>/Ea_table.tex — LaTeX table: Ea, ΔH‡, ΔS‡ for DSC & NMR
 """
-import sys, os
+import sys, os, argparse
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import matplotlib.pyplot as plt
@@ -87,13 +87,19 @@ SAMPLES = ['EDA', 'DAP', 'DAB']
 PARAMS  = [('lnk1', r'$k_1$'), ('lnk2', r'$k_2$')]
 YLIMS   = {'lnk1': (-30, 0), 'lnk2': (-20, -10)}   # ln(k_s / T) axis limits
 
-_HERE           = os.path.dirname(os.path.abspath(__file__))
-LATEX_TABLE_OUT = os.path.normpath(
-    os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_table.tex')
-)
-LATEX_EA_ONLY_OUT = os.path.normpath(
-    os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_only_table.tex')
-)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+def _latex_table_out():
+    """Path for Ea_table.tex -- redirected into the review outdir when set,
+    otherwise the live manuscript file as before."""
+    if pu.get_output_dir():
+        return os.path.join(pu.get_output_dir(), 'Ea_table.tex')
+    return os.path.normpath(os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_table.tex'))
+
+def _latex_ea_only_out():
+    if pu.get_output_dir():
+        return os.path.join(pu.get_output_dir(), 'Ea_only_table.tex')
+    return os.path.normpath(os.path.join(_HERE, '..', '..', 'Epoxy-Kinetics-2025', 'Ea_only_table.tex'))
 
 
 # ── Core Eyring regression ─────────────────────────────────────────────────────
@@ -311,12 +317,13 @@ def write_latex_table(results_ea, results_eyring):
         r'\end{table}',
     ]
 
-    dest_dir = os.path.dirname(LATEX_TABLE_OUT)
+    out = _latex_table_out()
+    dest_dir = os.path.dirname(out)
     if dest_dir:
         os.makedirs(dest_dir, exist_ok=True)
-    with open(LATEX_TABLE_OUT, 'w') as f:
+    with open(out, 'w') as f:
         f.write('\n'.join(lines) + '\n')
-    print(f'LaTeX table: {LATEX_TABLE_OUT}')
+    print(f'LaTeX table: {out}')
 
 
 def write_ea_only_table(results_ea):
@@ -365,12 +372,13 @@ def write_ea_only_table(results_ea):
         r'\end{table}',
     ]
 
-    dest_dir = os.path.dirname(LATEX_EA_ONLY_OUT)
+    out = _latex_ea_only_out()
+    dest_dir = os.path.dirname(out)
     if dest_dir:
         os.makedirs(dest_dir, exist_ok=True)
-    with open(LATEX_EA_ONLY_OUT, 'w') as f:
+    with open(out, 'w') as f:
         f.write('\n'.join(lines) + '\n')
-    print(f'LaTeX Ea-only table: {LATEX_EA_ONLY_OUT}')
+    print(f'LaTeX Ea-only table: {out}')
 
 
 # ── Temperature-range uncertainty analysis ─────────────────────────────────────
@@ -423,7 +431,7 @@ def _append_eyring_analysis(df, df_fit, results_ea, results_eyring):
                 f'  ΔG‡ = {r["dG"]:6.1f} ± {r["dG_err"]:.1f} kJ/mol ({pct(r["dG"], r["dG_err"]):.1f}%)'
             )
 
-    prov_path = os.path.join(_HERE, 'figures', 'eyring.provenance.txt')
+    prov_path = os.path.join(pu._figures_dir(), 'eyring.provenance.txt')
     with open(prov_path, 'a') as f:
         f.write('\n'.join(lines) + '\n')
 
@@ -489,4 +497,11 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here (including Ea_table.tex/Ea_only_table.tex) '
+                             'instead of figures/ and the live manuscript repo.')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()

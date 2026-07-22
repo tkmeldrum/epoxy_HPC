@@ -1,5 +1,5 @@
 """Arrhenius plots: 3×2 grid (rows = EDA/DAP/DAB, cols = ln k1 / ln k2)."""
-import sys, os
+import sys, os, argparse
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import matplotlib.pyplot as plt
@@ -135,8 +135,7 @@ def _append_ea_analysis(df, df_fit):
             except ValueError:
                 pass
 
-    prov_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             'figures', 'arrhenius.provenance.txt')
+    prov_path = os.path.join(pu._figures_dir(), 'arrhenius.provenance.txt')
     with open(prov_path, 'a') as f:
         f.write('\n'.join(lines) + '\n')
 
@@ -144,4 +143,10 @@ def _append_ea_analysis(df, df_fit):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here instead of figures/ (does not touch the originals).')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()

@@ -1,0 +1,13 @@
+PROVENANCE RECORD
+Generated : 2026-07-21 23:49:23
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/pub_figs/cpmg_fit.py
+
+DATASETS USED
+  NMR raw CPMG fit results — sample: EDA, temp: 25C (T₂ and β vs elapsed time)
+
+SOURCE FILES
+  all_samples.csv
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/cpmg_fit_results/all_samples.csv
+    modified: 2026-07-21 18:02:13
+    size    : 139848 bytes
+    md5     : 921ac650922ba91d4e4b92836ee9f93c

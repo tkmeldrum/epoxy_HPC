@@ -1,0 +1,11 @@
+PROVENANCE RECORD
+Generated : 2026-07-21 22:51:20
+Script    : /Users/tyler/Documents/GitHub/epoxy_HPC/plot_mcmc.py
+Output    : /Users/tyler/Documents/GitHub/epoxy_HPC/postreview/EDA_60C/posterior_summary_EDA_60C.csv
+
+SOURCE FILES (MCMC chains)
+  NMR_EDA_60C_fitdata.npz
+    path    : /Users/tyler/Documents/GitHub/epoxy_HPC/mcmc_samples_nmr/NMR_EDA_60C_fitdata.npz
+    modified: 2026-07-21 22:21:10
+    size    : 1344001518 bytes
+    md5     : 168cabd947d87de998398f882ba4be34

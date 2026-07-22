@@ -4,14 +4,14 @@ Matches structure of Epoxy-Kinetics-2025/SI/KM_with_r_table.tex.
 NMR r = max(α_data) fixed per dataset; DSC r from posterior median.
 DAP2 shown as NMR2 sub-block under DAP.
 """
-import sys, os, math
+import sys, os, math, argparse
 sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np
 import pub_utils as pu
 
 SAMPLE_ORDER = ['EDA', 'DAP', 'DAB']
 DSC_TEMPS    = [25, 33, 50, 60, 80, 100]
-NMR_TEMPS    = [25, 33, 40]
+NMR_TEMPS    = [25, 33, 40, 60]
 
 def fmt_val(median, ci_lo, ci_hi, scale=1.0):
     """Format median ± halfCI in linear space, scaled."""
@@ -65,9 +65,13 @@ def main():
     ]
 
     for si, sample in enumerate(SAMPLE_ORDER):
-        # Count total rows: 6 DSC + 3 NMR + (3 NMR2 if DAP)
-        n_nmr2  = 3 if sample == 'DAP' else 0
-        n_total = 6 + 3 + n_nmr2
+        # NMR2/DAP2 was never measured at every NMR_TEMPS entry (e.g. no 60C run) --
+        # count what's actually present rather than assuming it mirrors NMR_TEMPS.
+        nmr2_temps_present = (
+            [t for t in NMR_TEMPS if get_row(df, 'NMR2', 'DAP', t) is not None]
+            if sample == 'DAP' else []
+        )
+        n_total = 6 + len(NMR_TEMPS) + len(nmr2_temps_present)
 
         # DSC rows
         for ti, temp in enumerate(DSC_TEMPS):
@@ -92,10 +96,12 @@ def main():
         lines.append(r'        \cline{2-8}')
 
         if sample == 'DAP':
-            # Group by temperature: 2 rows per temp (NMR then NMR2), no per-run labels
-            nmr_n = len(NMR_TEMPS) * 2
+            # Group by temperature: NMR row, plus NMR2 row only where it exists.
+            nmr_n = len(NMR_TEMPS) + len(nmr2_temps_present)
+            is_first_row = True
             for ti, temp in enumerate(NMR_TEMPS):
-                for ri, method in enumerate(['NMR', 'NMR2']):
+                methods_here = ['NMR'] + (['NMR2'] if temp in nmr2_temps_present else [])
+                for ri, method in enumerate(methods_here):
                     row = get_row(df, method, sample, temp)
                     if row is None:
                         continue
@@ -109,13 +115,16 @@ def main():
                     _, a_data = pu.load_nmr_raw(raw_sample, f'{temp}C')
                     r_cell = f'{a_data.max():.2f}'
                     meth_prefix = (rf'\multirow{{{nmr_n}}}{{*}}{{NMR}} & '
-                                   if (ti == 0 and ri == 0) else r'~ & ')
-                    temp_prefix = (rf'\multirow{{2}}{{*}}{{{temp}}} & '
+                                   if is_first_row else r'~ & ')
+                    is_first_row = False
+                    temp_prefix = (rf'\multirow{{{len(methods_here)}}}{{*}}{{{temp}}} & '
                                    if ri == 0 else r'~ & ')
                     lines.append(f'        ~ & {meth_prefix}{temp_prefix}'
                                  f'{k1} & {k2} & {m} & {n} & {r_cell} \\\\')
         else:
             # Non-DAP: standard NMR block
+            nmr_temps_present = [t for t in NMR_TEMPS if get_row(df, 'NMR', sample, t) is not None]
+            is_first_row = True
             for ti, temp in enumerate(NMR_TEMPS):
                 row = get_row(df, 'NMR', sample, temp)
                 if row is None:
@@ -128,7 +137,9 @@ def main():
                 n      = fmt_val(row['n_median'], row['n_CI_lower'], row['n_CI_upper'])
                 _, a_data = pu.load_nmr_raw(sample, f'{temp}C')
                 r_cell = f'{a_data.max():.2f}'
-                prefix = rf'\multirow{{3}}{{*}}{{NMR}} & ' if ti == 0 else r'~ & '
+                prefix = (rf'\multirow{{{len(nmr_temps_present)}}}{{*}}{{NMR}} & '
+                          if is_first_row else r'~ & ')
+                is_first_row = False
                 lines.append(f'        ~ & {prefix}{temp} & {k1} & {k2} & {m} & {n} & {r_cell} \\\\')
 
         if si < len(SAMPLE_ORDER) - 1:
@@ -139,7 +150,7 @@ def main():
         r'\end{table}',
     ]
 
-    out = os.path.join(os.path.dirname(__file__), 'figures', 'table_km.tex')
+    out = os.path.join(pu._figures_dir(), 'table_km.tex')
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'w') as f:
         f.write('\n'.join(lines) + '\n')
@@ -151,4 +162,10 @@ def main():
     )
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--outdir', default=None,
+                        help='Redirect all output here instead of figures/ (does not touch the originals).')
+    args = parser.parse_args()
+    if args.outdir:
+        pu.set_output_dir(args.outdir)
     main()
