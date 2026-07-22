@@ -20,6 +20,7 @@ set TEMP = $TEMPS[${SLURM_ARRAY_TASK_ID}]
 
 echo "Running NMR DAP2 ${TEMP}C"
 
+source /sciclone/apps/miniforge3-24.9.2-0/etc/profile.d/conda.csh
 conda activate epoxy
 
 # Free-r version

@@ -1,7 +1,7 @@
 /mcmc_samples
 *.code-workspace
 /logs
-/__pycache__
+__pycache__/
 /diagnostic_plots
 *.npz
 *.pkl

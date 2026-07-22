@@ -15,6 +15,7 @@ echo "Starting task at: `date`"
 echo "SLURM task ID: $SLURM_ARRAY_TASK_ID"
 
 # Activate your environment
+source /sciclone/apps/miniforge3-24.9.2-0/etc/profile.d/conda.csh
 conda activate epoxy
 
 # Read the .npz file path from the file list

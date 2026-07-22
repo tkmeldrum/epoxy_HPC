@@ -15,6 +15,7 @@ echo "Running on host: `hostname`"
 echo "Using $SLURM_CPUS_PER_TASK CPUs on node"
 echo "Starting run at: `date`"
 
+source /sciclone/apps/miniforge3-24.9.2-0/etc/profile.d/conda.csh
 conda activate epoxy
 
 set BASE = ~/epoxy_kinetics
