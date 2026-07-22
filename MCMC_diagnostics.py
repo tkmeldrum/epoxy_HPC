@@ -130,7 +130,7 @@ def summarize_diagnostics(samples, chain, label, sampler, burnin, csv_path=None)
             posterior[name] = arr
 
         idata_start = time.time()
-        idata = az.from_dict(posterior=posterior)
+        idata = az.from_dict({"posterior": posterior})
         idata_end = time.time()
         print("✅ Created ArviZ InferenceData")
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         for name in param_names:
             print(f"  ↪️ {name}: shape {posterior_dict[name].shape} (chains, draws)")
 
-        idata = az.from_dict(posterior=posterior_dict)
+        idata = az.from_dict({"posterior": posterior_dict})
         print("✅ Created ArviZ InferenceData")
 
         # === Gelman-Rubin R̂ ===
